@@ -1,96 +1,148 @@
 {% extends "base.html" %}
 
-{% block title %}Select Quiz - Quiz App{% endblock %}
+{% block title %}Select Quiz - CICCE Quiz App{% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
-<div class="hero-section fade-in">
-    <i class="bi bi-mortarboard-fill text-primary" style="font-size: 4rem;"></i>
-    <h1 class="hero-title">Welcome to Quiz App</h1>
-    <p class="hero-subtitle">Choose a quiz below and test your knowledge!</p>
-    <div class="admission-badge">
-        Ready to Learn!
+<!-- Hero Section - Cleaner and more focused -->
+<div class="hero-section fade-in" style="padding: 2rem 1rem 1.5rem;">
+    <div style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); border-radius: 50%; margin-bottom: 1rem;">
+        <i class="bi bi-mortarboard-fill" style="font-size: 2.5rem; color: white;"></i>
     </div>
+    <h1 class="hero-title">Welcome to CICCE Quiz</h1>
+    <p class="hero-subtitle">Select a quiz below to test your knowledge</p>
 </div>
 
-<!-- Section Header -->
-<div class="section-header fade-up">
-    <h2 class="section-title"><i class="bi bi-journal-check"></i> Available Quizzes</h2>
-    <p class="section-subtitle">Select one of the available quizzes to test your knowledge</p>
-</div>
+<!-- Available Quizzes Section -->
+<section aria-labelledby="quiz-section-title">
+    <div class="section-header fade-up" style="margin-bottom: 1.5rem;">
+        <h2 id="quiz-section-title" class="section-title" style="font-size: 1.5rem;">
+            <i class="bi bi-collection"></i> Available Quizzes
+        </h2>
+        {% if quizzes %}
+        <p class="section-subtitle" style="font-size: 1rem;">{{ quizzes|length }} quiz{{ 'zes' if quizzes|length > 1 else '' }} available</p>
+        {% endif %}
+    </div>
 
-<!-- Quiz Cards Grid -->
-<div class="grid-container grid-cols-3" style="margin-top: 2rem;">
-    {% for quiz in quizzes %}
-        <div class="card-modern fade-up delay-{{ loop.index }}">
-            <div class="card-body-modern text-center">
-                <i class="bi bi-file-earmark-text card-icon text-primary"></i>
-                <h5 style="font-weight: 600; color: var(--primary-dark); margin-bottom: 0.5rem;">{{ quiz.title }}</h5>
-                <p class="text-muted" style="font-size: 0.9rem;">
-                    <i class="bi bi-question-circle"></i> {{ quiz.question_count }} questions
+    {% if quizzes %}
+    <!-- Quiz Cards Grid - Improved layout -->
+    <div class="grid-container grid-cols-3" style="margin-top: 1.5rem;">
+        {% for quiz in quizzes %}
+        <article class="card-modern quiz-card-item fade-up delay-{{ loop.index }}" style="display: flex; flex-direction: column;">
+            <div class="card-body-modern text-center" style="flex: 1; display: flex; flex-direction: column;">
+                <!-- Quiz Icon with gradient background -->
+                <div style="display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(236, 72, 153, 0.15)); border-radius: 1rem; margin: 0 auto 1rem;">
+                    <i class="bi bi-file-earmark-text" style="font-size: 1.75rem; color: var(--primary-color);"></i>
+                </div>
+                
+                <!-- Quiz Title -->
+                <h3 style="font-weight: 600; color: var(--primary-dark); margin-bottom: 0.75rem; font-size: 1.1rem;">
+                    {{ quiz.title }}
+                </h3>
+                
+                <!-- Quiz Meta Info - Organized in a clean grid -->
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-bottom: 1rem;">
+                    <span class="badge-modern badge-secondary" style="font-size: 0.8rem;">
+                        <i class="bi bi-question-circle"></i> {{ quiz.question_count }} questions
+                    </span>
                     {% if quiz.time_limit_minutes and quiz.time_limit_minutes > 0 %}
-                    <br><i class="bi bi-clock"></i> {{ quiz.time_limit_minutes }} min time limit
+                    <span class="badge-modern badge-warning" style="font-size: 0.8rem;">
+                        <i class="bi bi-stopwatch"></i> {{ quiz.time_limit_minutes }} min
+                    </span>
+                    {% else %}
+                    <span class="badge-modern badge-success" style="font-size: 0.8rem;">
+                        <i class="bi bi-infinity"></i> Untimed
+                    </span>
                     {% endif %}
-                    {% if quiz.submission_count > 0 %}
-                    <br><i class="bi bi-people"></i> {{ quiz.submission_count }} submissions
+                    {% if quiz.partial_credit %}
+                    <span class="badge-modern badge-info" style="font-size: 0.8rem;">
+                        <i class="bi bi-pie-chart"></i> Partial Credit
+                    </span>
                     {% endif %}
+                </div>
+                
+                <!-- Submission count if any -->
+                {% if quiz.submission_count > 0 %}
+                <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 0; margin-top: auto;">
+                    <i class="bi bi-people"></i> {{ quiz.submission_count }} student{{ 's' if quiz.submission_count > 1 else '' }} completed
                 </p>
-                {% if quiz.time_limit_minutes and quiz.time_limit_minutes > 0 %}
-                <span class="badge-modern badge-warning" style="font-size: 0.75rem;">
-                    <i class="bi bi-stopwatch"></i> Timed
-                </span>
-                {% endif %}
-                {% if quiz.partial_credit %}
-                <span class="badge-modern badge-info" style="font-size: 0.75rem;">
-                    <i class="bi bi-pie-chart"></i> Partial Credit
-                </span>
                 {% endif %}
             </div>
-            <div class="card-footer-modern">
-                <button class="btn-modern btn-primary-modern w-100 loadQuestionsButton" data-quiz-id="{{ quiz.quiz_id }}">
-                    <i class="bi bi-play-fill"></i> Start Quiz
+            
+            <!-- Card Footer with CTA -->
+            <div class="card-footer-modern" style="padding: 1rem 1.5rem;">
+                <button class="btn-modern btn-primary-modern w-100 loadQuestionsButton" 
+                        data-quiz-id="{{ quiz.quiz_id }}"
+                        aria-label="Start {{ quiz.title }} quiz">
+                    <i class="bi bi-play-circle"></i> Start Quiz
                 </button>
             </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- No quizzes available message -->
+    <div class="card-modern fade-up" style="text-align: center; padding: 3rem 2rem; max-width: 500px; margin: 2rem auto;">
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background: rgba(245, 158, 11, 0.15); border-radius: 50%; margin-bottom: 1.5rem;">
+            <i class="bi bi-inbox" style="font-size: 2.5rem; color: var(--warning-color);"></i>
         </div>
-    {% endfor %}
-</div>
+        <h3 style="color: var(--primary-dark); margin-bottom: 0.75rem;">No Quizzes Available</h3>
+        <p class="text-muted" style="margin-bottom: 1.5rem;">
+            Quizzes will appear here once they are added by your teacher.
+        </p>
+        {% if session.get('is_teacher') %}
+        <p class="text-muted" style="font-size: 0.9rem;">
+            <i class="bi bi-lightbulb"></i> Add quiz JSON files to the <code>questions</code> folder and click "Sync Quizzes" in the dashboard.
+        </p>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
 
-{% if not quizzes %}
-<div class="alert-modern alert-warning-modern text-center" style="margin-top: 2rem;">
-    <i class="bi bi-exclamation-triangle"></i> No quizzes available. Please add quiz JSON files to the questions folder.
-</div>
-{% endif %}
-
-<!-- Why Take Quiz Section -->
-<div style="margin-top: 3rem; padding: 2rem; background: rgba(255,255,255,0.5); border-radius: 1rem;">
-    <h3 class="text-center" style="color: var(--primary-dark); margin-bottom: 1.5rem;">
-        <i class="bi bi-lightbulb text-warning"></i> Why Take Quizzes?
-    </h3>
-    <div class="grid-container grid-cols-3">
-        <div class="text-center p-3">
-            <i class="bi bi-graph-up-arrow text-success" style="font-size: 2.5rem;"></i>
-            <h5 style="margin-top: 0.75rem; color: var(--primary-dark);">Track Progress</h5>
-            <p class="text-muted" style="font-size: 0.9rem;">Monitor your learning journey</p>
-        </div>
-        <div class="text-center p-3">
-            <i class="bi bi-lightbulb-fill text-info" style="font-size: 2.5rem;"></i>
-            <h5 style="margin-top: 0.75rem; color: var(--primary-dark);">Boost Memory</h5>
-            <p class="text-muted" style="font-size: 0.9rem;">Reinforce what you've learned</p>
-        </div>
-        <div class="text-center p-3">
-            <i class="bi bi-trophy text-warning" style="font-size: 2.5rem;"></i>
-            <h5 style="margin-top: 0.75rem; color: var(--primary-dark);">Achieve Goals</h5>
-            <p class="text-muted" style="font-size: 0.9rem;">Build confidence in your skills</p>
+<!-- Benefits Section - More concise -->
+{% if quizzes %}
+<section style="margin-top: 3rem;" aria-labelledby="benefits-title">
+    <div class="card-modern fade-up" style="background: rgba(255,255,255,0.7); padding: 2rem;">
+        <h3 id="benefits-title" class="text-center" style="color: var(--primary-dark); margin-bottom: 1.5rem; font-size: 1.25rem;">
+            <i class="bi bi-lightbulb text-warning"></i> Why Take Quizzes?
+        </h3>
+        <div class="grid-container grid-cols-3" style="gap: 1.5rem;">
+            <div class="text-center">
+                <div style="display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px; background: rgba(34, 197, 94, 0.15); border-radius: 50%; margin-bottom: 0.75rem;">
+                    <i class="bi bi-graph-up-arrow text-success" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5 style="font-size: 1rem; color: var(--primary-dark); margin-bottom: 0.25rem;">Track Progress</h5>
+                <p class="text-muted" style="font-size: 0.85rem; margin: 0;">Monitor your learning journey</p>
+            </div>
+            <div class="text-center">
+                <div style="display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px; background: rgba(20, 184, 166, 0.15); border-radius: 50%; margin-bottom: 0.75rem;">
+                    <i class="bi bi-lightbulb-fill text-info" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5 style="font-size: 1rem; color: var(--primary-dark); margin-bottom: 0.25rem;">Reinforce Learning</h5>
+                <p class="text-muted" style="font-size: 0.85rem; margin: 0;">Strengthen your understanding</p>
+            </div>
+            <div class="text-center">
+                <div style="display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px; background: rgba(245, 158, 11, 0.15); border-radius: 50%; margin-bottom: 0.75rem;">
+                    <i class="bi bi-trophy text-warning" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5 style="font-size: 1rem; color: var(--primary-dark); margin-bottom: 0.25rem;">Build Confidence</h5>
+                <p class="text-muted" style="font-size: 0.85rem; margin: 0;">Achieve your learning goals</p>
+            </div>
         </div>
     </div>
-</div>
+</section>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
     // Event handler to load questions when a button is clicked
     $('.loadQuestionsButton').click(function() {
-        var quizId = $(this).data('quiz-id');
+        var $btn = $(this);
+        var quizId = $btn.data('quiz-id');
+        
+        // Disable button and show loading state
+        $btn.prop('disabled', true);
+        $btn.html('<i class="bi bi-hourglass-split"></i> Loading...');
 
         // Make an AJAX call to load the selected quiz
         $.ajax({
@@ -104,12 +156,16 @@
                     window.location.href = data.redirect;
                 } else if (data && data.error) {
                     alert(data.error);
+                    $btn.prop('disabled', false);
+                    $btn.html('<i class="bi bi-play-circle"></i> Start Quiz');
                 } else {
                     window.location.href = "{{ url_for('quiz') }}";
                 }
             },
             error: function() {
-                alert("Error loading questions.");
+                alert("Error loading questions. Please try again.");
+                $btn.prop('disabled', false);
+                $btn.html('<i class="bi bi-play-circle"></i> Start Quiz');
             }
         });
     });

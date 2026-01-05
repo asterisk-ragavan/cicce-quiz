@@ -1,75 +1,91 @@
 {% extends "base.html" %}
 
-{% block title %}Student Details - Quiz App{% endblock %}
+{% block title %}Student Details - {{ quiz_name }} - Quiz App{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
     <div style="max-width: 500px; width: 100%;">
         {% if student_data %}
-        <!-- Show existing student info -->
+        <!-- Show existing student info - Welcome Back Flow -->
         <div class="card-modern fade-up">
             <div class="card-header-modern" style="background: linear-gradient(135deg, #10b981, #059669);">
                 <span><i class="bi bi-person-check-fill"></i> Welcome Back!</span>
             </div>
             <div class="card-body-modern">
-                <p class="text-muted mb-3">
-                    You are about to start: 
-                    <span class="badge-modern badge-info">{{ quiz_name }}</span>
-                </p>
+                <!-- Quiz Info Banner -->
+                <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); padding: 1rem; border-radius: 0.75rem; margin-bottom: 1.5rem; text-align: center;">
+                    <small class="text-muted" style="display: block; margin-bottom: 0.25rem;">Starting Quiz</small>
+                    <h5 style="color: var(--primary-dark); margin: 0; font-weight: 600;">{{ quiz_name }}</h5>
+                    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                        <span class="badge-modern badge-secondary" style="font-size: 0.75rem;">
+                            <i class="bi bi-question-circle"></i> {{ quiz_info.question_count if quiz_info else '?' }} questions
+                        </span>
+                        {% if quiz_info and quiz_info.time_limit_minutes and quiz_info.time_limit_minutes > 0 %}
+                        <span class="badge-modern badge-warning" style="font-size: 0.75rem;">
+                            <i class="bi bi-stopwatch"></i> {{ quiz_info.time_limit_minutes }} min
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
                 
-                <div class="card-modern mb-4" style="background: rgba(16, 185, 129, 0.1);">
-                    <div class="card-body-modern">
-                        <h5 style="color: var(--primary-dark); margin-bottom: 1rem;">
-                            <i class="bi bi-person-circle"></i> Your Details
-                        </h5>
-                        <div style="display: grid; gap: 0.5rem;">
-                            <p class="mb-0"><strong>Name:</strong> {{ student_data.first_name }} {{ student_data.last_name }}</p>
-                            <p class="mb-0"><strong>Batch:</strong> <span class="badge-modern badge-secondary">{{ student_data.batch }}</span></p>
+                <!-- Student Info Card -->
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="bi bi-person-fill" style="color: white; font-size: 1.25rem;"></i>
+                        </div>
+                        <div>
+                            <h5 style="margin: 0; color: var(--primary-dark); font-weight: 600;">
+                                {{ student_data.first_name }} {{ student_data.last_name }}
+                            </h5>
+                            <span class="badge-modern badge-secondary" style="font-size: 0.75rem; margin-top: 0.25rem;">
+                                {{ student_data.batch }}
+                            </span>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Resume Quiz Alert (shown via JS if progress exists) -->
-                <div id="resumeAlert" class="alert-modern alert-warning-modern mb-3" style="display: none;">
-                    <i class="bi bi-pause-circle"></i>
-                    <div>
-                        <strong>Incomplete Quiz Found!</strong>
-                        <p class="mb-0" style="font-size: 0.85rem;">
-                            You have saved progress: <span id="progressInfo"></span>
-                        </p>
+                <div id="resumeAlert" class="alert-modern alert-warning-modern" style="display: none; margin-bottom: 1.5rem;">
+                    <i class="bi bi-pause-circle-fill" style="font-size: 1.25rem;"></i>
+                    <div style="flex: 1;">
+                        <strong style="display: block;">You have a quiz in progress!</strong>
+                        <span id="progressInfo" style="font-size: 0.85rem; opacity: 0.9;"></span>
                     </div>
                 </div>
-                
-                <p class="text-muted mb-3" style="font-size: 0.9rem;">
-                    <i class="bi bi-info-circle"></i> Is this you? Click "Start Quiz" to continue, or "Not Me" to enter different details.
-                </p>
                 
                 <form action="{{ url_for('start_quiz_with_session') }}" method="POST" id="startQuizForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="quiz_id" value="{{ quiz_id }}">
                     <input type="hidden" name="resume" id="resumeInput" value="false">
-                    <div class="d-flex flex-wrap gap-3" id="actionButtons">
-                        <button type="submit" class="btn-modern btn-primary-modern" style="flex: 2;" id="startBtn">
+                    
+                    <!-- Default Action Buttons -->
+                    <div id="actionButtons">
+                        <button type="submit" class="btn-modern btn-primary-modern w-100" id="startBtn" style="margin-bottom: 0.75rem;">
                             <i class="bi bi-play-fill"></i> Start Quiz
                         </button>
-                        <a href="{{ url_for('clear_student_and_redirect', quiz=quiz_id) }}" class="btn-modern btn-outline-modern" style="flex: 1;">
-                            <i class="bi bi-person-x"></i> Not Me
+                        <a href="{{ url_for('clear_student_and_redirect', quiz=quiz_id) }}" class="btn-modern btn-outline-modern w-100">
+                            <i class="bi bi-person-x"></i> Not {{ student_data.first_name }}? Change Student
                         </a>
                     </div>
+                    
                     <!-- Resume buttons (shown via JS) -->
-                    <div class="d-flex flex-wrap gap-3 mt-2" id="resumeButtons" style="display: none !important;">
-                        <button type="button" class="btn-modern btn-success-modern" style="flex: 2;" onclick="resumeQuiz()">
+                    <div id="resumeButtons" style="display: none;">
+                        <button type="button" class="btn-modern btn-success-modern w-100" style="margin-bottom: 0.75rem;" onclick="resumeQuiz()">
                             <i class="bi bi-arrow-clockwise"></i> Resume Quiz
                         </button>
-                        <button type="button" class="btn-modern btn-outline-modern" style="flex: 1;" onclick="startFresh()">
+                        <button type="button" class="btn-modern btn-outline-modern w-100" style="margin-bottom: 0.75rem;" onclick="startFresh()">
                             <i class="bi bi-arrow-counterclockwise"></i> Start Fresh
                         </button>
+                        <a href="{{ url_for('clear_student_and_redirect', quiz=quiz_id) }}" class="btn-modern btn-secondary-modern w-100" style="font-size: 0.9rem;">
+                            <i class="bi bi-person-x"></i> Change Student
+                        </a>
                     </div>
                 </form>
                 
-                <div class="text-center mt-3">
+                <div class="text-center" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(0,0,0,0.1);">
                     <a href="{{ url_for('index') }}" class="text-muted" style="text-decoration: none; font-size: 0.9rem;">
-                        <i class="bi bi-arrow-left"></i> Back to Home
+                        <i class="bi bi-arrow-left"></i> Back to Quiz Selection
                     </a>
                 </div>
             </div>
@@ -78,71 +94,71 @@
         <!-- Show form for new student -->
         <div class="card-modern fade-up">
             <div class="card-header-modern">
-                <span><i class="bi bi-person-fill"></i> Enter Your Details</span>
+                <span><i class="bi bi-person-plus-fill"></i> Enter Your Details</span>
             </div>
             <div class="card-body-modern">
-                <p class="text-muted mb-4">
-                    Please provide your information before starting the quiz: 
-                    <span class="badge-modern badge-info">{{ quiz_name }}</span>
-                </p>
+                <!-- Quiz Info Banner -->
+                <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); padding: 1rem; border-radius: 0.75rem; margin-bottom: 1.5rem; text-align: center;">
+                    <small class="text-muted" style="display: block; margin-bottom: 0.25rem;">You're about to start</small>
+                    <h5 style="color: var(--primary-dark); margin: 0; font-weight: 600;">{{ quiz_name }}</h5>
+                </div>
                 
-                <form action="{{ url_for('set_student_details') }}" method="POST">
+                <form action="{{ url_for('set_student_details') }}" method="POST" id="studentForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="quiz_id" value="{{ quiz_id }}">
                     
-                    <div class="mb-4">
-                        <label for="first_name" class="form-label-modern">
-                            First Name <span class="text-danger">*</span>
-                        </label>
-                        <input type="text" class="form-control-modern" id="first_name" name="first_name" 
-                               placeholder="Enter your first name" required>
+                    <!-- Name Fields Row -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label for="first_name" class="form-label-modern">
+                                First Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control-modern" id="first_name" name="first_name" 
+                                   placeholder="John" required autocomplete="given-name">
+                        </div>
+                        <div>
+                            <label for="last_name" class="form-label-modern">
+                                Last Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control-modern" id="last_name" name="last_name" 
+                                   placeholder="Doe" required autocomplete="family-name">
+                        </div>
                     </div>
                     
-                    <div class="mb-4">
-                        <label for="last_name" class="form-label-modern">
-                            Last Name <span class="text-danger">*</span>
-                        </label>
-                        <input type="text" class="form-control-modern" id="last_name" name="last_name" 
-                               placeholder="Enter your last name" required>
-                    </div>
-                    
-                    <div class="mb-4">
+                    <div style="margin-bottom: 1.5rem;">
                         <label for="batch" class="form-label-modern">
-                            Batch <span class="text-danger">*</span>
+                            Batch / Class <span class="text-danger">*</span>
                         </label>
                         <input type="text" class="form-control-modern" id="batch" name="batch" 
-                               placeholder="e.g., Batch-A, 2024-A, Morning-Batch" required>
+                               placeholder="e.g., Batch-A, Morning-2024" required>
                         <small class="text-muted" style="display: block; margin-top: 0.5rem;">
-                            Enter your batch name or identifier
+                            <i class="bi bi-info-circle"></i> Enter your batch name as provided by your teacher
                         </small>
                     </div>
                     
-                    <div class="d-flex flex-wrap gap-3" style="margin-top: 1.5rem;">
-                        <button type="submit" class="btn-modern btn-primary-modern" style="flex: 1;">
-                            <i class="bi bi-play-fill"></i> Start Quiz
-                        </button>
-                        <a href="{{ url_for('index') }}" class="btn-modern btn-outline-modern" style="flex: 1;">
-                            <i class="bi bi-arrow-left"></i> Back to Home
-                        </a>
-                    </div>
+                    <button type="submit" class="btn-modern btn-primary-modern w-100" style="margin-bottom: 0.75rem;">
+                        <i class="bi bi-play-fill"></i> Start Quiz
+                    </button>
+                    <a href="{{ url_for('index') }}" class="btn-modern btn-outline-modern w-100">
+                        <i class="bi bi-arrow-left"></i> Back to Quiz Selection
+                    </a>
                 </form>
             </div>
         </div>
         
-        <!-- Info Card -->
-        <div class="card-modern mt-4 fade-up delay-2" style="background: rgba(20, 184, 166, 0.1);">
-            <div class="card-body-modern">
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <i class="bi bi-info-circle text-info" style="font-size: 1.25rem;"></i>
-                    <strong style="color: #115e59;">Quiz Information</strong>
-                </div>
-                <div class="d-flex flex-wrap gap-2 mb-2">
+        <!-- Quiz Info Card -->
+        <div class="card-modern mt-3 fade-up delay-1" style="background: rgba(20, 184, 166, 0.08); border: 1px solid rgba(20, 184, 166, 0.2);">
+            <div class="card-body-modern" style="padding: 1.25rem;">
+                <h6 style="color: #115e59; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="bi bi-info-circle"></i> Quiz Information
+                </h6>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
                     <span class="badge-modern badge-secondary">
                         <i class="bi bi-question-circle"></i> {{ quiz_info.question_count if quiz_info else '?' }} questions
                     </span>
                     {% if quiz_info and quiz_info.time_limit_minutes and quiz_info.time_limit_minutes > 0 %}
                     <span class="badge-modern badge-warning">
-                        <i class="bi bi-clock"></i> {{ quiz_info.time_limit_minutes }} min time limit
+                        <i class="bi bi-stopwatch"></i> {{ quiz_info.time_limit_minutes }} min time limit
                     </span>
                     {% else %}
                     <span class="badge-modern badge-success">
@@ -151,18 +167,20 @@
                     {% endif %}
                     {% if quiz_info and quiz_info.partial_credit %}
                     <span class="badge-modern badge-info">
-                        <i class="bi bi-pie-chart"></i> Partial credit enabled
+                        <i class="bi bi-pie-chart"></i> Partial credit
                     </span>
                     {% endif %}
                 </div>
-                <p class="mb-0" style="font-size: 0.85rem; color: #115e59;">
-                    {% if quiz_info and quiz_info.time_limit_minutes and quiz_info.time_limit_minutes > 0 %}
+                {% if quiz_info and quiz_info.time_limit_minutes and quiz_info.time_limit_minutes > 0 %}
+                <p style="margin: 0; font-size: 0.85rem; color: #115e59;">
                     <i class="bi bi-exclamation-triangle text-warning"></i> 
-                    Timer starts when you begin. Make sure you're ready!
-                    {% else %}
-                    Your details will be saved with your quiz results for tracking progress.
-                    {% endif %}
+                    <strong>Note:</strong> Timer starts when you begin. Make sure you're ready!
                 </p>
+                {% else %}
+                <p style="margin: 0; font-size: 0.85rem; color: #115e59;">
+                    Your details will be saved with your quiz results.
+                </p>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -189,11 +207,11 @@ $(document).ready(function() {
             if (data.has_progress) {
                 $('#resumeAlert').show();
                 $('#progressInfo').text(
-                    'Question ' + (data.current_question + 1) + ', ' + 
-                    data.answered_count + ' answered, Score: ' + data.score
+                    'Question ' + (data.current_question + 1) + ' of total, ' + 
+                    data.answered_count + ' answered'
                 );
                 $('#actionButtons').hide();
-                $('#resumeButtons').show().css('display', 'flex');
+                $('#resumeButtons').show().css('display', 'block');
             }
         }
     });
@@ -205,9 +223,16 @@ function resumeQuiz() {
 }
 
 function startFresh() {
-    $('#resumeInput').val('false');
-    $('#startQuizForm').submit();
+    if (confirm('Are you sure you want to start fresh? Your previous progress will be lost.')) {
+        $('#resumeInput').val('false');
+        $('#startQuizForm').submit();
+    }
 }
+{% else %}
+// Auto-focus first input field
+$(document).ready(function() {
+    $('#first_name').focus();
+});
 {% endif %}
 </script>
 {% endblock %}

@@ -1,47 +1,52 @@
 {% extends "base.html" %}
 
-{% block title %}Review Answers - {{ quiz_title }} - Quiz App{% endblock %}
+{% block title %}Review Answers - {{ quiz_title }}{% endblock %}
 
 {% block extra_css %}
 <style>
+    /* Timer Display */
     .timer-display {
         position: fixed;
-        top: 80px;
+        top: 90px;
         right: 20px;
         background: var(--card-bg);
-        backdrop-filter: var(--glass-blur);
         padding: 0.75rem 1.25rem;
         border-radius: 1rem;
-        box-shadow: var(--shadow-md);
+        box-shadow: var(--shadow-lg);
         z-index: 100;
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        font-weight: 600;
+        font-weight: 700;
+        font-size: 1.1rem;
+        border: 2px solid transparent;
     }
     .timer-display.warning {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
-        color: #d97706;
-        animation: pulse 1s infinite;
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.08));
+        border-color: var(--warning-color);
+        color: #b45309;
     }
     .timer-display.danger {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
-        color: #dc2626;
-        animation: pulse 0.5s infinite;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.08));
+        border-color: var(--danger-color);
+        color: #b91c1c;
+        animation: pulse-timer 0.5s ease-in-out infinite;
     }
-    @keyframes pulse {
+    @keyframes pulse-timer {
         0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.02); }
+        50% { transform: scale(1.03); }
     }
+    
+    /* Question Review Cards */
     .question-review-card {
         margin-bottom: 0.75rem;
         border-left: 4px solid #d1d5db;
         border-radius: 0.75rem;
         background: var(--card-bg);
-        backdrop-filter: var(--glass-blur);
         padding: 1rem 1.25rem;
-        transition: var(--transition-normal);
+        transition: all 0.2s ease;
         cursor: pointer;
+        border: 1px solid rgba(0,0,0,0.06);
     }
     .question-review-card:hover {
         box-shadow: var(--shadow-md);
@@ -52,48 +57,75 @@
     }
     .question-review-card.correct {
         border-left-color: var(--success-color);
-        background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.02));
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.06), rgba(34, 197, 94, 0.02));
     }
     .question-review-card.wrong {
         border-left-color: var(--danger-color);
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02));
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(239, 68, 68, 0.02));
     }
     .question-review-card.unanswered {
         border-left-color: var(--warning-color);
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.02));
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(245, 158, 11, 0.02));
     }
     .question-review-card.flagged {
         border-right: 4px solid var(--warning-color);
     }
+    
+    /* Question Number Badge */
     .question-number {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
         background: var(--primary-color);
         color: white;
-        font-weight: 600;
-        font-size: 0.85rem;
+        font-weight: 700;
+        font-size: 0.9rem;
         margin-right: 0.75rem;
+        flex-shrink: 0;
     }
-    .question-status-icon {
-        font-size: 1.25rem;
-    }
+    .question-review-card.correct .question-number { background: var(--success-color); }
+    .question-review-card.wrong .question-number { background: var(--danger-color); }
+    .question-review-card.unanswered .question-number { background: var(--warning-color); }
+    
+    /* Submit Section - Sticky footer */
     .submit-section {
         position: sticky;
         bottom: 0;
         background: var(--card-bg);
-        backdrop-filter: var(--glass-blur);
-        padding: 1.5rem;
+        padding: 1.25rem 1.5rem;
         border-radius: 1rem 1rem 0 0;
         box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
         margin-top: 2rem;
+        border: 1px solid rgba(0,0,0,0.08);
+        border-bottom: none;
     }
-    .partial-score-badge {
-        font-size: 0.7rem;
-        padding: 0.15rem 0.4rem;
+    
+    /* Filter Buttons */
+    .filter-btn.active {
+        font-weight: 600;
+    }
+    
+    /* Mobile responsive */
+    @media (max-width: 576px) {
+        .timer-display {
+            position: static;
+            margin-bottom: 1rem;
+            justify-content: center;
+        }
+        .submit-section {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            border-radius: 1rem 1rem 0 0;
+            z-index: 50;
+        }
+        .questions-list {
+            padding-bottom: 120px;
+        }
     }
 </style>
 {% endblock %}
@@ -101,59 +133,66 @@
 {% block content %}
 <!-- Timer Display -->
 {% if time_limit_minutes and time_limit_minutes > 0 %}
-<div class="timer-display" id="timerDisplay">
-    <i class="bi bi-clock"></i>
+<div class="timer-display" id="timerDisplay" role="timer" aria-live="polite">
+    <i class="bi bi-stopwatch"></i>
     <span id="timerText">--:--</span>
 </div>
 {% endif %}
 
 <div class="d-flex justify-content-center">
     <div style="max-width: 800px; width: 100%;">
-        <!-- Header -->
-        <div class="card-modern fade-up mb-4">
+        <!-- Header Card -->
+        <div class="card-modern fade-up mb-3">
             <div class="card-header-modern" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">
-                <span><i class="bi bi-list-check"></i> Review Your Answers</span>
-                <span class="badge-modern badge-light">{{ quiz_title }}</span>
+                <span style="font-size: 1.1rem;"><i class="bi bi-list-check"></i> Review Your Answers</span>
             </div>
             <div class="card-body-modern">
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <!-- Quiz Info -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
                     <div>
-                        <h5 style="margin: 0; color: var(--primary-dark);">
-                            <i class="bi bi-clipboard-check"></i> {{ answered_count }} of {{ total_questions }} answered
-                        </h5>
-                        <small class="text-muted">Click on a question to edit your answer</small>
+                        <h5 style="margin: 0; color: var(--primary-dark); font-weight: 600;">{{ quiz_title }}</h5>
+                        <small class="text-muted">Click on any question to edit your answer</small>
                     </div>
-                    <div class="d-flex gap-2">
-                        <span class="badge-modern badge-success">
-                            <i class="bi bi-check-lg"></i> {{ score }} Correct
+                    <div style="display: flex; gap: 0.5rem;">
+                        <span class="badge-modern badge-success" title="Correct answers">
+                            <i class="bi bi-check-lg"></i> {{ score }}
                         </span>
-                        <span class="badge-modern badge-danger">
-                            <i class="bi bi-x-lg"></i> {{ wrong_attempts }} Wrong
+                        <span class="badge-modern badge-danger" title="Wrong attempts">
+                            <i class="bi bi-x-lg"></i> {{ wrong_attempts }}
                         </span>
                     </div>
                 </div>
                 
-                <!-- Progress Bar -->
-                <div style="margin-top: 1rem;">
-                    {% set progress = (answered_count / total_questions * 100) | round(0) %}
-                    <div class="progress-modern" style="position: relative;">
+                <!-- Progress Summary -->
+                <div style="background: rgba(99, 102, 241, 0.08); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-weight: 600; color: var(--primary-dark);">
+                            <i class="bi bi-clipboard-check"></i> {{ answered_count }} of {{ total_questions }} answered
+                        </span>
+                        <span style="font-weight: 600; color: var(--primary-color);">
+                            {% set progress = (answered_count / total_questions * 100) | round(0) %}
+                            {{ progress }}%
+                        </span>
+                    </div>
+                    <div class="progress-modern" style="height: 0.5rem;">
                         <div class="progress-bar-modern {% if progress == 100 %}progress-bar-success{% elif progress >= 50 %}progress-bar-primary{% else %}progress-bar-warning{% endif %}" 
                              style="width: {{ progress }}%"></div>
-                        <span class="progress-text-centered">{{ progress }}% Answered</span>
                     </div>
                 </div>
                 
                 <!-- Filter Buttons -->
-                <div class="d-flex flex-wrap gap-2 mt-3">
-                    <button class="btn-modern btn-outline-modern filter-btn active" data-filter="all" style="font-size: 0.85rem;">
-                        <i class="bi bi-list"></i> All
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    <button class="btn-modern btn-primary-modern filter-btn active" data-filter="all" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                        <i class="bi bi-list"></i> All ({{ total_questions }})
                     </button>
-                    <button class="btn-modern btn-outline-modern filter-btn" data-filter="unanswered" style="font-size: 0.85rem;">
-                        <i class="bi bi-exclamation-circle"></i> Unanswered
+                    <button class="btn-modern btn-outline-modern filter-btn" data-filter="unanswered" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                        <i class="bi bi-exclamation-circle"></i> Unanswered ({{ total_questions - answered_count }})
                     </button>
-                    <button class="btn-modern btn-outline-modern filter-btn" data-filter="flagged" style="font-size: 0.85rem;">
-                        <i class="bi bi-flag-fill"></i> Flagged ({{ flagged_questions | length }})
+                    {% if flagged_questions | length > 0 %}
+                    <button class="btn-modern btn-outline-modern filter-btn" data-filter="flagged" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                        <i class="bi bi-flag-fill text-warning"></i> Flagged ({{ flagged_questions | length }})
                     </button>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -162,52 +201,52 @@
         <div class="questions-list fade-up">
             {% for q in questions_summary %}
             <div class="question-review-card {% if not q.is_answered %}unanswered{% elif q.is_correct %}correct{% elif q.is_correct == false %}wrong{% else %}answered{% endif %}{% if q.is_flagged %} flagged{% endif %}"
-                 onclick="goToQuestion({{ q.index }})" role="button"
+                 onclick="goToQuestion({{ q.index }})" 
+                 role="button"
+                 tabindex="0"
+                 aria-label="Question {{ q.index + 1 }}: {{ 'answered' if q.is_answered else 'not answered' }}"
                  data-answered="{{ 'true' if q.is_answered else 'false' }}"
                  data-flagged="{{ 'true' if q.is_flagged else 'false' }}">
-                <div class="d-flex align-items-start justify-content-between">
-                    <div class="d-flex align-items-start flex-grow-1">
-                        <span class="question-number">{{ q.index + 1 }}</span>
-                        <div style="flex: 1;">
-                            <p style="margin: 0; color: var(--primary-dark); font-weight: 500;">
-                                {{ q.question_text }}
-                            </p>
-                            {% if q.is_answered %}
-                            <div style="margin-top: 0.5rem;">
-                                <small class="text-muted">
-                                    <i class="bi bi-check2-square"></i> Your answer: 
-                                    <span style="color: var(--primary-dark);">
-                                        {{ q.user_answer | join(', ') if q.user_answer else 'No answer' }}
-                                    </span>
-                                </small>
-                                {% if q.is_multi_select and partial_credit_enabled and q.partial_score > 0 and q.partial_score < 1 %}
-                                <span class="badge-modern badge-info partial-score-badge ms-2">
-                                    {{ (q.partial_score * 100) | round(0) }}% credit
-                                </span>
+                <div style="display: flex; align-items: flex-start; gap: 0.5rem;">
+                    <span class="question-number">{{ q.index + 1 }}</span>
+                    <div style="flex: 1; min-width: 0;">
+                        <p style="margin: 0; color: var(--primary-dark); font-weight: 500; line-height: 1.4;">
+                            {{ q.question_text[:100] }}{% if q.question_text|length > 100 %}...{% endif %}
+                        </p>
+                        {% if q.is_answered %}
+                        <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <small style="color: #6b7280;">
+                                <i class="bi bi-check2-square"></i> 
+                                {{ q.user_answer[0][:30] if q.user_answer else 'No answer' }}{% if q.user_answer and q.user_answer[0]|length > 30 %}...{% endif %}
+                                {% if q.user_answer|length > 1 %}
+                                <span class="text-muted">+{{ q.user_answer|length - 1 }} more</span>
                                 {% endif %}
-                            </div>
-                            {% else %}
-                            <small class="text-warning">
-                                <i class="bi bi-exclamation-triangle"></i> Not answered yet
                             </small>
+                            {% if q.is_multi_select and partial_credit_enabled and q.partial_score > 0 and q.partial_score < 1 %}
+                            <span class="badge-modern badge-info" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;">
+                                {{ (q.partial_score * 100) | round(0) }}% credit
+                            </span>
                             {% endif %}
                         </div>
+                        {% else %}
+                        <small class="text-warning" style="margin-top: 0.25rem; display: block;">
+                            <i class="bi bi-exclamation-triangle"></i> Not answered
+                        </small>
+                        {% endif %}
                     </div>
-                    <div class="d-flex align-items-center gap-2">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
                         {% if q.is_flagged %}
-                        <i class="bi bi-flag-fill text-warning" title="Flagged for review"></i>
+                        <i class="bi bi-flag-fill text-warning" title="Flagged"></i>
                         {% endif %}
                         {% if q.is_multi_select %}
-                        <span class="badge-modern badge-secondary" style="font-size: 0.7rem;">
-                            Multi
-                        </span>
+                        <span class="badge-modern badge-secondary" style="font-size: 0.65rem; padding: 0.15rem 0.35rem;">Multi</span>
                         {% endif %}
                         {% if not q.is_answered %}
-                        <i class="bi bi-exclamation-circle text-warning question-status-icon"></i>
+                        <i class="bi bi-exclamation-circle text-warning" style="font-size: 1.1rem;"></i>
                         {% elif q.is_correct %}
-                        <i class="bi bi-check-circle-fill text-success question-status-icon"></i>
+                        <i class="bi bi-check-circle-fill text-success" style="font-size: 1.1rem;"></i>
                         {% elif q.is_correct == false %}
-                        <i class="bi bi-x-circle-fill text-danger question-status-icon"></i>
+                        <i class="bi bi-x-circle-fill text-danger" style="font-size: 1.1rem;"></i>
                         {% endif %}
                         <i class="bi bi-chevron-right text-muted"></i>
                     </div>
@@ -218,26 +257,26 @@
 
         <!-- Submit Section -->
         <div class="submit-section fade-up">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                 <div>
                     {% if answered_count < total_questions %}
-                    <p class="text-warning mb-1" style="font-weight: 500;">
+                    <p style="color: var(--warning-color); font-weight: 600; margin: 0;">
                         <i class="bi bi-exclamation-triangle"></i> 
-                        {{ total_questions - answered_count }} question(s) not answered
+                        {{ total_questions - answered_count }} question{{ 's' if (total_questions - answered_count) > 1 else '' }} unanswered
                     </p>
                     <small class="text-muted">You can still submit with unanswered questions</small>
                     {% else %}
-                    <p class="text-success mb-0" style="font-weight: 500;">
-                        <i class="bi bi-check-circle"></i> All questions answered!
+                    <p style="color: var(--success-color); font-weight: 600; margin: 0;">
+                        <i class="bi bi-check-circle-fill"></i> All questions answered!
                     </p>
+                    <small class="text-muted">Ready to submit your quiz</small>
                     {% endif %}
                 </div>
-                <div class="d-flex gap-2">
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                     <a href="{{ url_for('quiz') }}" class="btn-modern btn-secondary-modern">
                         <i class="bi bi-arrow-left"></i> Continue Quiz
                     </a>
-                    <form action="{{ url_for('submit_quiz') }}" method="POST" style="display: inline;"
-                          onsubmit="return confirmSubmit()">
+                    <form action="{{ url_for('submit_quiz') }}" method="POST" style="display: inline;" onsubmit="return confirmSubmit()">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-modern btn-primary-modern">
                             <i class="bi bi-send-check"></i> Submit Quiz
@@ -304,7 +343,7 @@
         if (answeredCount < totalQuestions) {
             return confirm('You have ' + (totalQuestions - answeredCount) + ' unanswered question(s). Are you sure you want to submit?');
         }
-        return confirm('Are you sure you want to submit your quiz? You cannot change your answers after submission.');
+        return confirm('Are you sure you want to submit? You cannot change your answers after submission.');
     }
 
     // Filter functionality
@@ -316,8 +355,8 @@
         const cards = $('.question-review-card');
         
         cards.each(function() {
-            const isAnswered = $(this).data('answered') === true;
-            const isFlagged = $(this).data('flagged') === true;
+            const isAnswered = $(this).data('answered') === 'true';
+            const isFlagged = $(this).data('flagged') === 'true';
             
             if (filter === 'all') {
                 $(this).show();
@@ -327,6 +366,14 @@
                 $(this).toggle(isFlagged);
             }
         });
+    });
+    
+    // Keyboard navigation for question cards
+    $('.question-review-card').keydown(function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            $(this).click();
+        }
     });
 </script>
 {% endblock %}

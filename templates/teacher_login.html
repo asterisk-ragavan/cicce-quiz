@@ -1,64 +1,108 @@
 {% extends "base.html" %}
 
-{% block title %}Teacher Login - Quiz App{% endblock %}
+{% block title %}Teacher Login - CICCE Quiz{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
-    <div style="max-width: 450px; width: 100%;">
-        <div class="card-modern fade-up">
-            <div class="card-header-modern" style="background: linear-gradient(135deg, #1f2937, #111827);">
-                <span><i class="bi bi-person-lock"></i> Teacher Login</span>
+<div style="min-height: 70vh; display: flex; align-items: center; justify-content: center;">
+    <div style="max-width: 420px; width: 100%;">
+        <!-- Login Card -->
+        <div class="card-modern fade-up" style="border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.1);">
+            <!-- Header with Icon -->
+            <div style="text-align: center; padding: 2rem 2rem 0;">
+                <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #1f2937, #374151); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem; box-shadow: 0 8px 25px rgba(31, 41, 55, 0.3);">
+                    <i class="bi bi-person-lock" style="font-size: 2.25rem; color: white;"></i>
+                </div>
+                <h4 style="color: var(--primary-dark); margin-bottom: 0.25rem;">Teacher Portal</h4>
+                <p class="text-muted" style="font-size: 0.9rem;">Sign in to access the dashboard</p>
             </div>
-            <div class="card-body-modern">
-                <form action="{{ url_for('teacher_login') }}" method="POST">
+            
+            <div class="card-body-modern" style="padding: 1.5rem 2rem 2rem;">
+                <form action="{{ url_for('teacher_login') }}" method="POST" id="loginForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-4">
-                        <label for="username" class="form-label-modern">
+                    
+                    <div style="margin-bottom: 1.25rem;">
+                        <label for="username" class="form-label-modern" style="font-weight: 500;">
                             <i class="bi bi-person"></i> Username
                         </label>
-                        <input type="text" class="form-control-modern" id="username" name="username" 
-                               placeholder="Enter username" required>
+                        <input type="text" 
+                               class="form-control-modern" 
+                               id="username" 
+                               name="username" 
+                               placeholder="Enter your username" 
+                               autocomplete="username"
+                               required 
+                               autofocus>
                     </div>
                     
-                    <div class="mb-4">
-                        <label for="password" class="form-label-modern">
+                    <div style="margin-bottom: 1.5rem;">
+                        <label for="password" class="form-label-modern" style="font-weight: 500;">
                             <i class="bi bi-key"></i> Password
                         </label>
-                        <input type="password" class="form-control-modern" id="password" name="password" 
-                               placeholder="Enter password" required>
+                        <div style="position: relative;">
+                            <input type="password" 
+                                   class="form-control-modern" 
+                                   id="password" 
+                                   name="password" 
+                                   placeholder="Enter your password" 
+                                   autocomplete="current-password"
+                                   style="padding-right: 3rem;"
+                                   required>
+                            <button type="button" 
+                                    id="togglePassword" 
+                                    style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6b7280; padding: 0.25rem;"
+                                    aria-label="Toggle password visibility">
+                                <i class="bi bi-eye" id="eyeIcon"></i>
+                            </button>
+                        </div>
                     </div>
                     
-                    <div class="d-flex flex-wrap gap-3" style="margin-top: 1.5rem;">
-                        <button type="submit" class="btn-modern w-100" style="background: linear-gradient(135deg, #1f2937, #111827); color: white;">
-                            <i class="bi bi-box-arrow-in-right"></i> Login
-                        </button>
-                    </div>
-                    <div style="margin-top: 1rem;">
-                        <a href="{{ url_for('index') }}" class="btn-modern btn-outline-modern w-100">
-                            <i class="bi bi-arrow-left"></i> Back to Home
-                        </a>
-                    </div>
+                    <button type="submit" 
+                            class="btn-modern w-100" 
+                            style="background: linear-gradient(135deg, #1f2937, #374151); color: white; padding: 0.875rem 1.5rem; font-size: 1rem;"
+                            id="loginBtn">
+                        <i class="bi bi-box-arrow-in-right"></i> Sign In
+                    </button>
                 </form>
-            </div>
-            <div class="card-footer-modern text-center">
-                <small class="text-muted">
-                    <i class="bi bi-shield-lock"></i> Contact administrator if you forgot your credentials
-                </small>
+                
+                <div style="margin-top: 1.25rem; text-align: center;">
+                    <a href="{{ url_for('index') }}" style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;">
+                        <i class="bi bi-arrow-left"></i> Back to Home
+                    </a>
+                </div>
             </div>
         </div>
         
-        <!-- Security Info -->
-        <div class="card-modern mt-4 fade-up delay-2" style="background: rgba(124, 58, 237, 0.1);">
-            <div class="card-body-modern">
-                <div class="d-flex align-items-center gap-3">
-                    <i class="bi bi-shield-check text-primary" style="font-size: 2rem;"></i>
-                    <div>
-                        <h6 style="color: var(--primary-dark); margin-bottom: 0.25rem;">Secure Access</h6>
-                        <small class="text-muted">Teacher portal for managing quiz results and settings</small>
-                    </div>
-                </div>
+        <!-- Security Note -->
+        <div style="text-align: center; margin-top: 1.5rem; padding: 0 1rem;" class="fade-up">
+            <div style="display: inline-flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.85rem;">
+                <i class="bi bi-shield-check"></i>
+                <span>Secure login • Contact admin for help</span>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Toggle password visibility
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const password = document.getElementById('password');
+        const eyeIcon = document.getElementById('eyeIcon');
+        if (password.type === 'password') {
+            password.type = 'text';
+            eyeIcon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            password.type = 'password';
+            eyeIcon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
+    
+    // Submit loading state
+    document.getElementById('loginForm').addEventListener('submit', function() {
+        const btn = document.getElementById('loginBtn');
+        btn.innerHTML = '<span class="loading-spinner"></span> Signing in...';
+        btn.disabled = true;
+    });
+</script>
 {% endblock %}

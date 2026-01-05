@@ -1,37 +1,40 @@
 {% extends "base.html" %}
 
-{% block title %}Quiz Results - Quiz App{% endblock %}
+{% block title %}Quiz Results - {{ quiz_title }}{% endblock %}
 
 {% block extra_css %}
 <style>
+    /* Result Question Card */
     .result-question-card {
         margin-bottom: 1rem;
         border-left: 4px solid #d1d5db;
         border-radius: 0.75rem;
         background: var(--card-bg);
-        backdrop-filter: var(--glass-blur);
         padding: 1.25rem;
-        transition: var(--transition-normal);
+        transition: all 0.2s ease;
+        border: 1px solid rgba(0,0,0,0.06);
     }
     .result-question-card:hover {
         box-shadow: var(--shadow-md);
     }
     .result-correct-card {
-        background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05));
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.02));
         border-left-color: var(--success-color);
     }
     .result-wrong-card {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05));
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02));
         border-left-color: var(--danger-color);
     }
+    
+    /* Result Options */
     .result-option {
-        padding: 0.5rem 0.875rem;
+        padding: 0.625rem 0.875rem;
         margin: 0.35rem 0;
         border-radius: 0.5rem;
-        transition: var(--transition-fast);
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        background: rgba(0,0,0,0.02);
     }
     .result-correct-option {
         background: var(--success-color);
@@ -40,135 +43,154 @@
     .result-wrong-option {
         background: var(--danger-color);
         color: white;
-        opacity: 0.8;
+        opacity: 0.85;
     }
     .result-selected-option {
         border: 2px solid var(--primary-color);
         font-weight: 600;
     }
-    .hidden-answer .result-option {
-        background-color: rgba(248, 249, 250, 0.8) !important;
-        color: #333 !important;
+    
+    /* Score Card */
+    .score-display {
+        font-size: 4rem;
+        font-weight: 800;
+        line-height: 1;
     }
+    
+    /* Stat Card */
     .stat-card {
         text-align: center;
-        padding: 1.5rem 1rem;
+        padding: 1.25rem 1rem;
     }
     .stat-number {
-        font-size: 2.5rem;
+        font-size: 2rem;
         font-weight: 700;
         line-height: 1;
     }
-    .filter-btn {
-        transition: all 0.3s ease;
-    }
+    
+    /* Filter buttons */
     .filter-btn.active {
-        transform: scale(1.05);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Hidden answers */
+    .hidden-answer .result-option {
+        background-color: rgba(248, 249, 250, 0.8) !important;
+        color: #333 !important;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Student Info (if available) -->
+<!-- Student Info Banner -->
 {% if student_data %}
-<div class="alert-modern alert-info-modern mb-4 fade-in">
-    <i class="bi bi-person-circle" style="font-size: 1.25rem;"></i>
-    <div>
-        <strong>{{ student_data.first_name }} {{ student_data.last_name }}</strong>
-        <span class="badge-modern badge-secondary" style="margin-left: 0.5rem;">{{ student_data.batch }}</span>
+<div class="card-modern mb-3 fade-in" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.05));">
+    <div class="card-body-modern" style="padding: 0.75rem 1.25rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                <i class="bi bi-person-fill" style="color: white; font-size: 1.25rem;"></i>
+            </div>
+            <div>
+                <strong style="color: var(--primary-dark);">{{ student_data.first_name }} {{ student_data.last_name }}</strong>
+                <span class="badge-modern badge-secondary" style="font-size: 0.75rem; margin-left: 0.5rem;">{{ student_data.batch }}</span>
+            </div>
+        </div>
     </div>
 </div>
 {% endif %}
 
-<!-- Score Summary Card -->
+<!-- Main Score Card -->
 <div class="card-modern mb-4 fade-up">
-    <div class="card-header-modern text-center" style="padding: 1.5rem;">
-        <h4 style="margin: 0;"><i class="bi bi-trophy"></i> Quiz Results</h4>
+    <div class="card-header-modern text-center" style="padding: 1rem;">
+        <h4 style="margin: 0;"><i class="bi bi-trophy"></i> Quiz Complete!</h4>
     </div>
     <div class="card-body-modern">
-        <div class="grid-container grid-cols-4" style="gap: 0;">
-            <div class="stat-card" style="border-right: 1px solid rgba(0,0,0,0.1);">
-                <div class="stat-number text-primary">{{ total_questions }}</div>
-                <small class="text-muted">Total Questions</small>
+        <!-- Score Display -->
+        <div style="text-align: center; padding: 1.5rem 0;">
+            {% set percent = (score / total_questions * 100) | round(1) %}
+            <div class="score-display {% if percent >= 80 %}text-success{% elif percent >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                {{ percent }}%
             </div>
-            <div class="stat-card" style="border-right: 1px solid rgba(0,0,0,0.1);">
-                <div class="stat-number text-success">{{ score }}</div>
-                <small class="text-muted">Correct Answers</small>
-            </div>
-            <div class="stat-card" style="border-right: 1px solid rgba(0,0,0,0.1);">
-                <div class="stat-number text-danger">{{ wrong_attempts }}</div>
-                <small class="text-muted">Wrong Attempts</small>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number {% if score == total_questions %}text-success{% elif score >= total_questions * 0.5 %}text-warning{% else %}text-danger{% endif %}">
-                    {{ score }}/{{ total_questions }}
-                </div>
-                <small class="text-muted">Final Score</small>
-            </div>
+            <p style="font-size: 1.25rem; color: var(--primary-dark); margin: 0.5rem 0 0;">
+                {{ score }} out of {{ total_questions }} correct
+            </p>
         </div>
         
         <!-- Progress Bar -->
-        <div style="margin-top: 1.5rem; padding: 0 1.5rem 1rem;">
-            {% set percent = (score / total_questions * 100) | round(1) %}
-            <div class="progress-modern" style="height: 2rem; position: relative;">
+        <div style="margin: 0 auto 1.5rem; max-width: 400px;">
+            <div class="progress-modern" style="height: 1rem;">
                 <div class="progress-bar-modern {% if percent >= 80 %}progress-bar-success{% elif percent >= 50 %}progress-bar-warning{% else %}progress-bar-danger{% endif %}" 
                      style="width: {{ percent }}%"></div>
-                <span class="progress-text-centered">{{ percent }}%</span>
             </div>
         </div>
         
-        <!-- Performance Message -->
-        <div class="text-center" style="padding: 1rem;">
+        <!-- Stats Grid -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 1.5rem;">
+            <div class="stat-card" style="background: rgba(34, 197, 94, 0.1); border-radius: 0.75rem;">
+                <div class="stat-number text-success">{{ score }}</div>
+                <small class="text-muted">Correct</small>
+            </div>
+            <div class="stat-card" style="background: rgba(239, 68, 68, 0.1); border-radius: 0.75rem;">
+                <div class="stat-number text-danger">{{ wrong_attempts }}</div>
+                <small class="text-muted">Wrong Attempts</small>
+            </div>
+            <div class="stat-card" style="background: rgba(99, 102, 241, 0.1); border-radius: 0.75rem;">
+                <div class="stat-number text-primary">{{ total_questions }}</div>
+                <small class="text-muted">Total</small>
+            </div>
+        </div>
+        
+        <!-- Performance Badge -->
+        <div style="text-align: center;">
             {% if percent >= 80 %}
-            <div class="admission-badge" style="background: linear-gradient(45deg, var(--success-color), #10b981);">
+            <div class="badge-modern badge-success" style="font-size: 1rem; padding: 0.75rem 1.5rem;">
                 <i class="bi bi-star-fill"></i> Excellent Performance!
             </div>
             {% elif percent >= 50 %}
-            <div class="admission-badge" style="background: linear-gradient(45deg, var(--warning-color), #d97706);">
-                <i class="bi bi-hand-thumbs-up"></i> Good Job! Keep Learning!
+            <div class="badge-modern badge-warning" style="font-size: 1rem; padding: 0.75rem 1.5rem;">
+                <i class="bi bi-hand-thumbs-up"></i> Good Job! Keep Practicing!
             </div>
             {% else %}
-            <div class="admission-badge" style="background: linear-gradient(45deg, var(--info-color), #0d9488);">
-                <i class="bi bi-book"></i> Keep Practicing!
+            <div class="badge-modern badge-info" style="font-size: 1rem; padding: 0.75rem 1.5rem;">
+                <i class="bi bi-book"></i> Keep Learning!
             </div>
             {% endif %}
         </div>
     </div>
 </div>
 
-<!-- Score History -->
+<!-- Score History (if multiple attempts) -->
 {% if score_history and score_history | length > 1 %}
 <div class="card-modern mb-4 fade-up">
     <div class="card-header-modern" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.8), rgba(99, 102, 241, 0.8));">
-        <span><i class="bi bi-clock-history"></i> Your Score History - {{ quiz_title }}</span>
-        <span class="badge-modern badge-light">{{ score_history | length }} attempts</span>
+        <span><i class="bi bi-clock-history"></i> Your History - {{ quiz_title }}</span>
+        <span class="badge-modern" style="background: rgba(255,255,255,0.2);">{{ score_history | length }} attempts</span>
     </div>
-    <div class="card-body-modern">
-        <!-- Overall Stats -->
+    <div class="card-body-modern" style="padding: 1rem;">
         {% if student_stats %}
-        <div class="grid-container grid-cols-4 mb-3" style="gap: 0.5rem;">
-            <div class="text-center" style="padding: 0.75rem; background: rgba(99, 102, 241, 0.1); border-radius: 0.5rem;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">{{ student_stats.total_attempts }}</div>
-                <small class="text-muted">Total Attempts</small>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem;">
+            <div style="text-align: center; padding: 0.75rem; background: rgba(99, 102, 241, 0.08); border-radius: 0.5rem;">
+                <div style="font-size: 1.25rem; font-weight: 700; color: var(--primary-color);">{{ student_stats.total_attempts }}</div>
+                <small class="text-muted">Attempts</small>
             </div>
-            <div class="text-center" style="padding: 0.75rem; background: rgba(34, 197, 94, 0.1); border-radius: 0.5rem;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-color);">{{ student_stats.quizzes_taken }}</div>
-                <small class="text-muted">Quizzes Taken</small>
+            <div style="text-align: center; padding: 0.75rem; background: rgba(34, 197, 94, 0.08); border-radius: 0.5rem;">
+                <div style="font-size: 1.25rem; font-weight: 700; color: var(--success-color);">{{ student_stats.quizzes_taken }}</div>
+                <small class="text-muted">Quizzes</small>
             </div>
-            <div class="text-center" style="padding: 0.75rem; background: rgba(245, 158, 11, 0.1); border-radius: 0.5rem;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning-color);">{{ student_stats.avg_score }}%</div>
-                <small class="text-muted">Average Score</small>
+            <div style="text-align: center; padding: 0.75rem; background: rgba(245, 158, 11, 0.08); border-radius: 0.5rem;">
+                <div style="font-size: 1.25rem; font-weight: 700; color: var(--warning-color);">{{ student_stats.avg_score }}%</div>
+                <small class="text-muted">Average</small>
             </div>
-            <div class="text-center" style="padding: 0.75rem; background: rgba(20, 184, 166, 0.1); border-radius: 0.5rem;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: var(--info-color);">{{ student_stats.best_score }}%</div>
-                <small class="text-muted">Best Score</small>
+            <div style="text-align: center; padding: 0.75rem; background: rgba(20, 184, 166, 0.08); border-radius: 0.5rem;">
+                <div style="font-size: 1.25rem; font-weight: 700; color: var(--info-color);">{{ student_stats.best_score }}%</div>
+                <small class="text-muted">Best</small>
             </div>
         </div>
         {% endif %}
         
-        <div style="overflow-x: auto; max-height: 200px; overflow-y: auto;">
-            <table class="table-modern" style="font-size: 0.9rem;">
+        <div style="overflow-x: auto; max-height: 180px; overflow-y: auto;">
+            <table class="table-modern" style="font-size: 0.85rem;">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -179,11 +201,11 @@
                 </thead>
                 <tbody>
                     {% for attempt in score_history %}
-                    <tr {% if loop.first %}style="background: rgba(99, 102, 241, 0.1);"{% endif %}>
-                        <td>{{ loop.index }}{% if loop.first %} <span class="badge-modern badge-primary" style="font-size: 0.7rem;">Latest</span>{% endif %}</td>
+                    <tr {% if loop.first %}style="background: rgba(99, 102, 241, 0.08);"{% endif %}>
+                        <td>{{ loop.index }}{% if loop.first %} <span class="badge-modern badge-primary" style="font-size: 0.6rem;">Latest</span>{% endif %}</td>
                         <td><strong>{{ attempt.score }}/{{ attempt.max_score }}</strong></td>
                         <td>
-                            <span class="badge-modern {% if attempt.percentage >= 80 %}badge-success{% elif attempt.percentage >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                            <span class="badge-modern {% if attempt.percentage >= 80 %}badge-success{% elif attempt.percentage >= 50 %}badge-warning{% else %}badge-danger{% endif %}" style="font-size: 0.75rem;">
                                 {{ attempt.percentage }}%
                             </span>
                         </td>
@@ -198,34 +220,42 @@
 {% endif %}
 
 {% if show_answers %}
-<!-- Action Buttons -->
-<div class="d-flex justify-content-center mb-4 flex-wrap gap-3 fade-up">
+<!-- Filter and Actions -->
+<div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-bottom: 1.5rem;" class="fade-up">
     <button id="btn-view-all" class="btn-modern btn-primary-modern filter-btn active">
-        <i class="bi bi-list"></i> View All
+        <i class="bi bi-list"></i> All Questions
     </button>
     <button id="btn-correct" class="btn-modern btn-success-modern filter-btn">
-        <i class="bi bi-check-circle"></i> Correct
+        <i class="bi bi-check-circle"></i> Correct ({{ score }})
     </button>
     <button id="btn-wrong" class="btn-modern btn-danger-modern filter-btn">
-        <i class="bi bi-x-circle"></i> Wrong
+        <i class="bi bi-x-circle"></i> Incorrect ({{ total_questions - score }})
     </button>
-    <a href="{{ url_for('index') }}" class="btn-modern btn-secondary-modern">
+</div>
+
+<!-- Question Details List -->
+<div id="question-list" class="fade-up">
+    <!-- Questions will be loaded dynamically -->
+</div>
+
+<!-- Take Another Quiz Button -->
+<div style="text-align: center; margin-top: 2rem;" class="fade-up">
+    <a href="{{ url_for('index') }}" class="btn-modern btn-primary-modern">
         <i class="bi bi-arrow-repeat"></i> Take Another Quiz
     </a>
 </div>
-
-<!-- Question List -->
-<div id="question-list" class="fade-up">
-    <!-- Questions will be loaded here dynamically -->
-</div>
 {% else %}
-<!-- Answer hidden message -->
-<div class="card-modern text-center fade-up" style="background: rgba(20, 184, 166, 0.1);">
-    <div class="card-body-modern" style="padding: 2rem;">
-        <i class="bi bi-lock-fill" style="font-size: 3rem; color: var(--info-color);"></i>
-        <h5 style="color: var(--primary-dark); margin: 1rem 0;">Detailed Answers Not Available</h5>
-        <p class="text-muted">Contact your teacher if you need access to view correct answers.</p>
-        <a href="{{ url_for('index') }}" class="btn-modern btn-primary-modern" style="margin-top: 1rem;">
+<!-- Answers Hidden Message -->
+<div class="card-modern text-center fade-up" style="background: rgba(20, 184, 166, 0.08); border: 1px solid rgba(20, 184, 166, 0.2);">
+    <div class="card-body-modern" style="padding: 2.5rem 2rem;">
+        <div style="width: 70px; height: 70px; background: rgba(20, 184, 166, 0.15); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem;">
+            <i class="bi bi-lock-fill" style="font-size: 2rem; color: var(--info-color);"></i>
+        </div>
+        <h5 style="color: var(--primary-dark); margin-bottom: 0.5rem;">Detailed Answers Hidden</h5>
+        <p class="text-muted" style="margin-bottom: 1.5rem;">
+            Contact your teacher if you need access to view correct answers.
+        </p>
+        <a href="{{ url_for('index') }}" class="btn-modern btn-primary-modern">
             <i class="bi bi-arrow-repeat"></i> Take Another Quiz
         </a>
     </div>
@@ -236,14 +266,16 @@
 {% block extra_js %}
 {% if show_answers %}
 <script>
-    // Function to dynamically create question cards
+    // Question data
     const questions = {{ session['questions']|tojson }};
     const userAnswers = {{ user_answers|tojson }};
     const isCorrectData = {{ is_correct|tojson }};
     
     function loadQuestions(filter = 'all') {
         const questionList = document.getElementById('question-list');
-        questionList.innerHTML = '';  // Clear existing questions
+        questionList.innerHTML = '';
+        
+        let displayCount = 0;
         
         questions.forEach((question, index) => {
             const isCorrect = isCorrectData[index] || isCorrectData[String(index)];
@@ -253,6 +285,8 @@
             if ((filter === 'correct' && !isCorrect) || (filter === 'wrong' && isCorrect)) {
                 return;
             }
+            
+            displayCount++;
 
             // Create card for each question
             const card = document.createElement('div');
@@ -260,20 +294,21 @@
             
             // Question content
             card.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h5 style="font-weight: 600; color: var(--primary-dark); flex: 1; margin: 0; line-height: 1.4;">
-                        ${index + 1}. ${question.question}
-                    </h5>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; margin-bottom: 1rem;">
+                    <h6 style="font-weight: 600; color: var(--primary-dark); flex: 1; margin: 0; line-height: 1.5;">
+                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: ${isCorrect ? 'var(--success-color)' : 'var(--danger-color)'}; color: white; border-radius: 50%; font-size: 0.85rem; margin-right: 0.5rem;">${index + 1}</span>
+                        ${question.question}
+                    </h6>
                     ${isCorrect ? 
-                        '<span class="badge-modern badge-success"><i class="bi bi-check"></i> Correct</span>' : 
-                        '<span class="badge-modern badge-danger"><i class="bi bi-x"></i> Incorrect</span>'}
+                        '<span class="badge-modern badge-success" style="flex-shrink: 0;"><i class="bi bi-check-lg"></i> Correct</span>' : 
+                        '<span class="badge-modern badge-danger" style="flex-shrink: 0;"><i class="bi bi-x-lg"></i> Wrong</span>'}
                 </div>
-                <div style="margin-top: 1rem;">
+                <div>
                     ${question.options.map(option => `
                         <div class="result-option ${userSelectedOptions.includes(option) ? 'result-selected-option' : ''} ${question.answer.includes(option) ? 'result-correct-option' : ''} ${userSelectedOptions.includes(option) && !question.answer.includes(option) ? 'result-wrong-option' : ''}">
                             ${userSelectedOptions.includes(option) ? '<i class="bi bi-check-square-fill"></i>' : '<i class="bi bi-square"></i>'}
                             <span style="flex: 1;">${option}</span>
-                            ${question.answer.includes(option) ? '<span class="badge-modern badge-success" style="font-size: 0.7rem;">✓ Correct</span>' : ''}
+                            ${question.answer.includes(option) ? '<span class="badge-modern badge-success" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">✓ Answer</span>' : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -281,9 +316,19 @@
 
             questionList.appendChild(card);
         });
+        
+        // Show message if no questions match filter
+        if (displayCount === 0) {
+            questionList.innerHTML = `
+                <div class="text-center" style="padding: 2rem; color: #6b7280;">
+                    <i class="bi bi-inbox" style="font-size: 2rem; opacity: 0.5;"></i>
+                    <p style="margin-top: 0.5rem;">No ${filter} questions to display</p>
+                </div>
+            `;
+        }
     }
 
-    // Button event listeners to load different sets of questions
+    // Button event listeners
     document.getElementById('btn-view-all').addEventListener('click', function() {
         loadQuestions('all');
         setActiveButton(this);
@@ -302,7 +347,7 @@
         btn.classList.add('active');
     }
 
-    // Initial load of all questions
+    // Initial load
     loadQuestions();
 </script>
 {% endif %}

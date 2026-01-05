@@ -1,73 +1,76 @@
 {% extends "base.html" %}
 
-{% block title %}Permissions Settings - Quiz App{% endblock %}
+{% block title %}Permissions - CICCE Quiz Admin{% endblock %}
 
 {% block content %}
 <!-- Breadcrumb -->
-<div class="mb-4 fade-in">
-    <nav style="background: var(--card-bg); backdrop-filter: var(--glass-blur); padding: 0.75rem 1rem; border-radius: 0.75rem;">
-        <a href="{{ url_for('teacher_dashboard') }}" class="text-primary" style="text-decoration: none;">
-            <i class="bi bi-speedometer2"></i> Dashboard
-        </a>
-        <span class="text-muted"> / </span>
-        <span class="text-muted">Settings</span>
-    </nav>
+<nav style="margin-bottom: 1.25rem; font-size: 0.875rem;" class="fade-in">
+    <a href="{{ url_for('teacher_dashboard') }}" style="color: var(--primary-color); text-decoration: none;">
+        <i class="bi bi-speedometer2"></i> Dashboard
+    </a>
+    <span class="text-muted" style="margin: 0 0.5rem;">/</span>
+    <span class="text-muted">Permissions</span>
+</nav>
+
+<!-- Page Header -->
+<div style="margin-bottom: 1.5rem;" class="fade-in">
+    <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 0.25rem;">
+        <i class="bi bi-shield-lock" style="opacity: 0.8;"></i> Answer Visibility
+    </h1>
+    <p class="text-muted" style="margin: 0;">Control which batches can view correct answers after quiz submission</p>
 </div>
 
-<!-- Section Header -->
-<div class="section-header fade-up">
-    <h2 class="section-title"><i class="bi bi-gear"></i> Permissions Settings</h2>
-    <p class="section-subtitle">Control which batches can view answers for each quiz</p>
-</div>
-
-<div class="card-modern fade-up">
-    <div class="card-header-modern" style="background: linear-gradient(135deg, #1f2937, #111827);">
-        <span><i class="bi bi-shield-lock"></i> Answer Visibility Permissions</span>
-    </div>
-    <div class="card-body-modern">
-        <div class="alert-modern alert-info-modern" style="margin-bottom: 1.5rem;">
-            <i class="bi bi-info-circle"></i>
-            <div>
-                <strong>How it works:</strong> Enter comma-separated batch names to allow those batches to see correct/incorrect answer indicators after submitting a quiz. 
-                If left empty, students in those batches will only see their score, not the detailed answers.
+<!-- Main Permissions Card -->
+<div class="card-modern mb-4 fade-up">
+    <div class="card-body-modern" style="padding: 1.5rem;">
+        <!-- Info Banner -->
+        <div style="background: rgba(20, 184, 166, 0.08); border: 1px solid rgba(20, 184, 166, 0.2); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1.5rem; display: flex; gap: 0.75rem;">
+            <i class="bi bi-lightbulb" style="color: var(--info-color); font-size: 1.25rem; flex-shrink: 0;"></i>
+            <div style="font-size: 0.875rem;">
+                <strong style="color: var(--primary-dark);">How it works:</strong> 
+                <span class="text-muted">Enter batch names (comma-separated) to allow students from those batches to see detailed answer breakdowns. Leave empty to hide answers from everyone.</span>
             </div>
         </div>
         
-        <form action="{{ url_for('teacher_settings') }}" method="POST">
+        <form action="{{ url_for('teacher_settings') }}" method="POST" id="permissionsForm">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
             {% for quiz in quizzes %}
-            <div class="card-modern" style="margin-bottom: 1rem; background: rgba(124, 58, 237, 0.05);">
-                <div class="card-body-modern">
-                    <div class="d-flex align-items-center gap-2 mb-3">
-                        <i class="bi bi-file-earmark-text text-primary" style="font-size: 1.25rem;"></i>
-                        <strong style="color: var(--primary-dark);">{{ quiz.quiz_name }}</strong>
-                        {% if not quiz.is_active %}
-                        <span class="badge bg-secondary">Archived</span>
-                        {% endif %}
-                    </div>
-                    <input type="text" class="form-control-modern" 
-                           name="batches_{{ quiz.quiz_id }}" 
-                           value="{{ quiz.allowed_batches | join(', ') if quiz.allowed_batches else '' }}"
-                           placeholder="e.g., Batch-A, Batch-B, 2024-Morning">
-                    <div style="margin-top: 0.75rem;">
-                        <small class="text-muted">Current: </small>
-                        {% if quiz.allowed_batches %}
-                            {% for batch in quiz.allowed_batches %}
-                                <span class="badge-modern" style="background: var(--primary-color); color: white; margin-left: 0.25rem;">{{ batch }}</span>
-                            {% endfor %}
-                        {% else %}
-                            <span class="text-muted"><i class="bi bi-lock"></i> No batches - answers hidden from all students</span>
-                        {% endif %}
-                    </div>
+            <div style="border: 1px solid rgba(0,0,0,0.08); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem; background: rgba(248, 250, 252, 0.5);">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <i class="bi bi-journal-text text-primary"></i>
+                    <strong style="color: var(--primary-dark); flex: 1;">{{ quiz.quiz_name }}</strong>
+                    {% if not quiz.is_active %}
+                    <span class="badge-modern badge-secondary" style="font-size: 0.65rem;">Archived</span>
+                    {% endif %}
+                </div>
+                
+                <input type="text" 
+                       class="form-control-modern" 
+                       name="batches_{{ quiz.quiz_id }}" 
+                       value="{{ quiz.allowed_batches | join(', ') if quiz.allowed_batches else '' }}"
+                       placeholder="e.g., Batch-A, Batch-B, 2024-Morning"
+                       style="font-size: 0.9rem;">
+                
+                <div style="margin-top: 0.5rem; font-size: 0.8rem;">
+                    {% if quiz.allowed_batches %}
+                    <span class="text-muted">Allowed: </span>
+                    {% for batch in quiz.allowed_batches %}
+                    <span class="badge-modern badge-primary" style="font-size: 0.7rem; margin-right: 0.25rem;">{{ batch }}</span>
+                    {% endfor %}
+                    {% else %}
+                    <span class="text-muted"><i class="bi bi-lock"></i> Answers hidden from all students</span>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
             
-            <div class="d-flex justify-content-between flex-wrap gap-3" style="margin-top: 2rem;">
+            <!-- Action Buttons -->
+            <div style="display: flex; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(0,0,0,0.08);">
                 <a href="{{ url_for('teacher_dashboard') }}" class="btn-modern btn-secondary-modern">
-                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                    <i class="bi bi-arrow-left"></i> Back
                 </a>
-                <button type="submit" class="btn-modern btn-primary-modern">
+                <button type="submit" class="btn-modern btn-primary-modern" id="saveBtn">
                     <i class="bi bi-save"></i> Save Permissions
                 </button>
             </div>
@@ -75,95 +78,75 @@
     </div>
 </div>
 
-<!-- Security Settings -->
-<div class="card-modern mt-4 fade-up delay-1" style="border-color: rgba(220, 38, 38, 0.3);">
-    <div class="card-header-modern" style="background: linear-gradient(135deg, #dc2626, #b91c1c);">
-        <span><i class="bi bi-shield-lock"></i> Security Settings</span>
-    </div>
-    <div class="card-body-modern">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <div>
-                <h6 style="color: var(--primary-dark); margin-bottom: 0.25rem;">
+<!-- Quick Actions Grid -->
+<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem;" class="fade-up">
+    <!-- Security Settings -->
+    <div class="card-modern" style="background: linear-gradient(135deg, rgba(220, 38, 38, 0.06), rgba(220, 38, 38, 0.02));">
+        <div class="card-body-modern" style="padding: 1.25rem;">
+            <h6 style="color: var(--primary-dark); margin-bottom: 1rem; font-weight: 600;">
+                <i class="bi bi-shield-lock text-danger"></i> Security
+            </h6>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <a href="{{ url_for('teacher_change_password') }}" class="btn-modern btn-outline-modern w-100" style="justify-content: flex-start;">
                     <i class="bi bi-key"></i> Change Password
-                </h6>
-                <small class="text-muted">Update your account password for security</small>
+                </a>
+                <a href="{{ url_for('teacher_manage_teachers') }}" class="btn-modern btn-outline-modern w-100" style="justify-content: flex-start;">
+                    <i class="bi bi-people"></i> Manage Teachers
+                </a>
             </div>
-            <a href="{{ url_for('teacher_change_password') }}" class="btn-modern" style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: white;">
-                <i class="bi bi-pencil"></i> Change Password
-            </a>
         </div>
-        <hr style="margin: 1.5rem 0; border-color: rgba(0,0,0,0.1);">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <div>
-                <h6 style="color: var(--primary-dark); margin-bottom: 0.25rem;">
-                    <i class="bi bi-people-fill"></i> Manage Teachers
-                </h6>
-                <small class="text-muted">Add or remove teacher accounts (Admin only)</small>
+    </div>
+    
+    <!-- Management Tools -->
+    <div class="card-modern" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(99, 102, 241, 0.02));">
+        <div class="card-body-modern" style="padding: 1.25rem;">
+            <h6 style="color: var(--primary-dark); margin-bottom: 1rem; font-weight: 600;">
+                <i class="bi bi-tools text-primary"></i> Tools
+            </h6>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <a href="{{ url_for('teacher_manage_batches') }}" class="btn-modern btn-outline-modern w-100" style="justify-content: flex-start;">
+                    <i class="bi bi-collection"></i> Manage Batches
+                </a>
+                <a href="{{ url_for('teacher_analytics') }}" class="btn-modern btn-outline-modern w-100" style="justify-content: flex-start;">
+                    <i class="bi bi-graph-up"></i> View Analytics
+                </a>
             </div>
-            <a href="{{ url_for('teacher_manage_teachers') }}" class="btn-modern btn-outline-modern">
-                <i class="bi bi-person-gear"></i> Manage Teachers
-            </a>
         </div>
     </div>
 </div>
 
-<!-- Management Options -->
-<div class="card-modern mt-4 fade-up delay-2" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05));">
-    <div class="card-header-modern" style="background: rgba(99, 102, 241, 0.2);">
-        <span><i class="bi bi-tools text-primary"></i> Management Tools</span>
-    </div>
-    <div class="card-body-modern">
-        <div class="grid-container grid-cols-2" style="gap: 1rem;">
-            <a href="{{ url_for('teacher_manage_batches') }}" class="card-modern" style="text-decoration: none; transition: transform 0.2s;">
-                <div class="card-body-modern d-flex align-items-center gap-3">
-                    <i class="bi bi-collection text-primary" style="font-size: 2rem;"></i>
-                    <div>
-                        <h6 style="color: var(--primary-dark); margin: 0;">Manage Batches</h6>
-                        <small class="text-muted">Create and organize student batches</small>
-                    </div>
+<!-- Help Section -->
+<div class="card-modern fade-up" style="background: rgba(248, 250, 252, 0.8);">
+    <div class="card-body-modern" style="padding: 1.25rem;">
+        <h6 style="color: var(--primary-dark); margin-bottom: 0.75rem; font-weight: 600;">
+            <i class="bi bi-question-circle text-info"></i> Examples
+        </h6>
+        <div style="font-size: 0.85rem; color: #4b5563;">
+            <div style="display: grid; gap: 0.5rem;">
+                <div style="display: flex; gap: 0.75rem;">
+                    <code style="background: rgba(99, 102, 241, 0.1); padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-size: 0.8rem; white-space: nowrap;">Batch-A, Batch-B</code>
+                    <span>→ Both batches can see answers</span>
                 </div>
-            </a>
-            <a href="{{ url_for('teacher_analytics') }}" class="card-modern" style="text-decoration: none; transition: transform 0.2s;">
-                <div class="card-body-modern d-flex align-items-center gap-3">
-                    <i class="bi bi-graph-up-arrow text-success" style="font-size: 2rem;"></i>
-                    <div>
-                        <h6 style="color: var(--primary-dark); margin: 0;">View Analytics</h6>
-                        <small class="text-muted">Charts and performance insights</small>
-                    </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <code style="background: rgba(99, 102, 241, 0.1); padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-size: 0.8rem; white-space: nowrap;">2024-Morning</code>
+                    <span>→ Only morning batch can see</span>
                 </div>
-            </a>
-            <a href="{{ url_for('teacher_export_all_csv') }}" class="card-modern" style="text-decoration: none; transition: transform 0.2s;">
-                <div class="card-body-modern d-flex align-items-center gap-3">
-                    <i class="bi bi-file-earmark-spreadsheet text-warning" style="font-size: 2rem;"></i>
-                    <div>
-                        <h6 style="color: var(--primary-dark); margin: 0;">Export Results</h6>
-                        <small class="text-muted">Download all results as CSV</small>
-                    </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <code style="background: rgba(220, 38, 38, 0.1); padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-size: 0.8rem; white-space: nowrap;">(empty)</code>
+                    <span>→ No one can see answers</span>
                 </div>
-            </a>
-            <a href="{{ url_for('teacher_sync_quizzes') }}" class="card-modern" style="text-decoration: none; transition: transform 0.2s;">
-                <div class="card-body-modern d-flex align-items-center gap-3">
-                    <i class="bi bi-arrow-repeat text-info" style="font-size: 2rem;"></i>
-                    <div>
-                        <h6 style="color: var(--primary-dark); margin: 0;">Sync Quizzes</h6>
-                        <small class="text-muted">Import new quiz files</small>
-                    </div>
-                </div>
-            </a>
+            </div>
         </div>
     </div>
 </div>
+{% endblock %}
 
-<div class="card-modern mt-4 fade-up delay-3" style="background: rgba(20, 184, 166, 0.1);">
-    <div class="card-body-modern">
-        <h5 style="color: var(--info-color); margin-bottom: 1rem;">
-            <i class="bi bi-question-circle"></i> Permission Examples
-        </h5>
-        <ul style="margin: 0; padding-left: 1.25rem; color: #4b5563;">
-            <li style="margin-bottom: 0.5rem;"><strong>Batch-A, Batch-B</strong> - Students in Batch-A and Batch-B can see answers</li>
-            <li style="margin-bottom: 0.5rem;"><strong>2024-Morning, 2024-Evening</strong> - Both morning and evening batches can see answers</li>
-            <li><strong>(empty)</strong> - No students can see answers, only their final score</li>
-        </ul>
-    </div>
-</div>
+{% block extra_js %}
+<script>
+    document.getElementById('permissionsForm').addEventListener('submit', function() {
+        const btn = document.getElementById('saveBtn');
+        btn.innerHTML = '<span class="loading-spinner"></span> Saving...';
+        btn.disabled = true;
+    });
+</script>
 {% endblock %}
