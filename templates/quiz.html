@@ -118,12 +118,17 @@
                     <button type="button" class="btn-modern btn-primary-modern" id="submitAnswer">
                         <i class="bi bi-check-lg"></i> Submit
                     </button>
+                    {% if question_index == total_questions - 1 %}
+                    <!-- Last question - show Review & Submit button -->
+                    <button type="button" class="btn-modern btn-success-modern" id="nextButton">
+                        <i class="bi bi-list-check"></i> Review & Submit
+                    </button>
+                    {% else %}
+                    <!-- Not last question - show Next button -->
                     <button type="button" class="btn-modern btn-info-modern" id="nextButton">
                         Next <i class="bi bi-arrow-right"></i>
                     </button>
-                    <button type="button" class="btn-modern btn-warning-modern" id="reviewButton">
-                        <i class="bi bi-list-check"></i> Review All
-                    </button>
+                    {% endif %}
                     {% if show_answers %}
                     <button type="button" class="btn-modern btn-outline-modern" id="viewAnswerButton">
                         <i class="bi bi-eye"></i> View Answer
@@ -294,10 +299,6 @@
                 }
             }
         });
-    });
-
-    $('#reviewButton').click(function() {
-        window.location.href = "{{ url_for('review_quiz') }}";
     });
 </script>
 {% endblock %}
