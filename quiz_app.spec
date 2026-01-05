@@ -52,6 +52,12 @@ a = Analysis(
         'cachelib.simple',
         'sqlite3',
         'database',
+        # System tray support
+        'pystray',
+        'pystray._win32',
+        'PIL',
+        'PIL.Image',
+        'PIL.ImageDraw',
     ],
     hookspath=[],
     hooksconfig={},
@@ -80,7 +86,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,  # Set to False for no console window
+    console=False,  # Set to False for no console window
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
