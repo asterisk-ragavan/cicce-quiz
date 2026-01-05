@@ -34,6 +34,7 @@
         </div>
         
         <form action="{{ url_for('teacher_settings') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% for quiz in quizzes %}
             <div class="card-modern" style="margin-bottom: 1rem; background: rgba(124, 58, 237, 0.05);">
                 <div class="card-body-modern">
@@ -74,7 +75,27 @@
     </div>
 </div>
 
-<div class="card-modern mt-4 fade-up delay-1" style="background: rgba(20, 184, 166, 0.1);">
+<!-- Security Settings -->
+<div class="card-modern mt-4 fade-up delay-1" style="border-color: rgba(220, 38, 38, 0.3);">
+    <div class="card-header-modern" style="background: linear-gradient(135deg, #dc2626, #b91c1c);">
+        <span><i class="bi bi-shield-lock"></i> Security Settings</span>
+    </div>
+    <div class="card-body-modern">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h6 style="color: var(--primary-dark); margin-bottom: 0.25rem;">
+                    <i class="bi bi-key"></i> Change Password
+                </h6>
+                <small class="text-muted">Update your account password for security</small>
+            </div>
+            <a href="{{ url_for('teacher_change_password') }}" class="btn-modern" style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: white;">
+                <i class="bi bi-pencil"></i> Change Password
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card-modern mt-4 fade-up delay-2" style="background: rgba(20, 184, 166, 0.1);">
     <div class="card-body-modern">
         <h5 style="color: var(--info-color); margin-bottom: 1rem;">
             <i class="bi bi-question-circle"></i> Examples

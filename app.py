@@ -8,13 +8,20 @@ Features:
 - Auto-import JSON quiz files on startup
 - Per-question analytics tracking
 - Password hashing for teacher accounts
+- CSRF protection with Flask-WTF
+- Rate limiting for login attempts
+- Session timeout for security
 - Type hints throughout
 """
 
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, flash, Response
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import random
 import os
 import sys
+from datetime import timedelta
 from flask_session import Session
 from typing import Any
 
@@ -37,9 +44,24 @@ app = Flask(__name__,
             template_folder=os.path.join(BUNDLE_DIR, 'templates'),
             static_folder=os.path.join(BUNDLE_DIR, 'static'))
 app.secret_key = 'your_secret_key_change_in_production'
+
+# Session configuration
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = os.path.join(EXE_DIR, 'flask_session')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # Session timeout
+app.config['SESSION_PERMANENT'] = True
 Session(app)
+
+# CSRF Protection
+csrf = CSRFProtect(app)
+
+# Rate Limiting (for login protection)
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # Path configuration
 QUESTIONS_FOLDER: str = os.path.join(EXE_DIR, 'questions')
@@ -75,6 +97,15 @@ def initialize_session(questions: list[QuestionDict]) -> None:
     session['attempts'] = {}
     session['result_saved'] = False
     session.modified = True
+
+
+@app.before_request
+def check_session_timeout() -> Response | None:
+    """Check for session timeout and refresh session"""
+    session.permanent = True
+    # Refresh session on each request to extend timeout
+    session.modified = True
+    return None
 
 
 # ============ STUDENT ROUTES ============
@@ -325,8 +356,9 @@ def result() -> str | Response:
 # ============ TEACHER ROUTES ============
 
 @app.route('/teacher/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", methods=["POST"])  # Rate limit login attempts
 def teacher_login() -> str | Response:
-    """Teacher login"""
+    """Teacher login with rate limiting"""
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
@@ -514,6 +546,51 @@ def teacher_settings() -> str | Response:
     
     quizzes = db.get_quiz_results_summary()
     return render_template('teacher_settings.html', quizzes=quizzes)
+
+
+@app.route('/teacher/change-password', methods=['GET', 'POST'])
+def teacher_change_password() -> str | Response:
+    """Change teacher password"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        
+        username = session.get('teacher_username', 'admin')
+        
+        # Validate current password
+        if not db.verify_teacher_password(username, current_password):
+            flash('Current password is incorrect.', 'danger')
+            return redirect(url_for('teacher_change_password'))
+        
+        # Validate new password
+        if len(new_password) < 6:
+            flash('New password must be at least 6 characters.', 'danger')
+            return redirect(url_for('teacher_change_password'))
+        
+        if new_password != confirm_password:
+            flash('New passwords do not match.', 'danger')
+            return redirect(url_for('teacher_change_password'))
+        
+        # Update password
+        if db.update_teacher_password(username, new_password):
+            flash('Password changed successfully!', 'success')
+            return redirect(url_for('teacher_settings'))
+        else:
+            flash('Failed to update password.', 'danger')
+    
+    return render_template('teacher_change_password.html')
+
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    """Handle rate limit exceeded"""
+    flash('Too many login attempts. Please wait a minute before trying again.', 'danger')
+    return redirect(url_for('teacher_login'))
 
 
 if __name__ == '__main__':

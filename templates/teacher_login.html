@@ -11,6 +11,7 @@
             </div>
             <div class="card-body-modern">
                 <form action="{{ url_for('teacher_login') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-4">
                         <label for="username" class="form-label-modern">
                             <i class="bi bi-person"></i> Username

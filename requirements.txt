@@ -4,6 +4,7 @@
 # Web Framework
 Flask>=3.0.0
 Flask-Session>=0.8.0
+Flask-WTF>=1.2.0
 Werkzeug>=3.0.0
 
 # Template Engine (included with Flask, but pinned for compatibility)
@@ -13,6 +14,7 @@ MarkupSafe>=2.1.0
 # Security & Utils
 itsdangerous>=2.1.0
 click>=8.1.0
+Flask-Limiter>=3.5.0
 
 # Session Storage
 cachelib>=0.12.0

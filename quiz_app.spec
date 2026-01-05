@@ -38,6 +38,12 @@ a = Analysis(
     hiddenimports=[
         'flask',
         'flask_session',
+        'flask_wtf',
+        'flask_wtf.csrf',
+        'flask_limiter',
+        'flask_limiter.util',
+        'wtforms',
+        'limits',
         'jinja2',
         'werkzeug',
         'werkzeug.security',
