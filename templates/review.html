@@ -273,9 +273,6 @@
                     {% endif %}
                 </div>
                 <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                    <a href="{{ url_for('quiz') }}" class="btn-modern btn-secondary-modern">
-                        <i class="bi bi-arrow-left"></i> Continue Quiz
-                    </a>
                     <form action="{{ url_for('submit_quiz') }}" method="POST" style="display: inline;" onsubmit="return confirmSubmit()">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-modern btn-primary-modern">
