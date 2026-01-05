@@ -584,7 +584,12 @@ def student_details() -> str | Response:
         flash('Quiz not found.', 'danger')
         return redirect(url_for('index'))
     
-    return render_template('student_details.html', quiz_id=quiz_id, quiz_name=quiz_info['title'])
+    # Pass existing student data if available
+    student_data = session.get('student_data')
+    return render_template('student_details.html', 
+                          quiz_id=quiz_id, 
+                          quiz_name=quiz_info['title'],
+                          student_data=student_data)
 
 
 @app.route('/set-student-details', methods=['POST'])
@@ -624,6 +629,41 @@ def clear_student() -> Response:
     session.pop('student_data', None)
     flash('Session cleared.', 'info')
     return redirect(url_for('index'))
+
+
+@app.route('/clear-student-redirect')
+def clear_student_and_redirect() -> Response:
+    """Clear student session and redirect back to student details"""
+    quiz_id = request.args.get('quiz', '')
+    session.pop('student_data', None)
+    session.pop('current_quiz_id', None)
+    session.pop('current_quiz_title', None)
+    if quiz_id:
+        return redirect(url_for('student_details', quiz=quiz_id))
+    return redirect(url_for('index'))
+
+
+@app.route('/start-quiz-session', methods=['POST'])
+def start_quiz_with_session() -> Response:
+    """Start quiz using existing session student data"""
+    quiz_id = request.form.get('quiz_id', '').strip()
+    
+    if not session.get('student_data'):
+        flash('Please enter your details first.', 'warning')
+        return redirect(url_for('student_details', quiz=quiz_id))
+    
+    quiz_info = get_quiz_info(quiz_id)
+    if not quiz_info or not quiz_info['is_active']:
+        flash('Quiz not available.', 'danger')
+        return redirect(url_for('index'))
+    
+    session['current_quiz_id'] = quiz_id
+    session['current_quiz_title'] = quiz_info['title']
+    
+    questions = get_quiz_questions(quiz_id, shuffle=True)
+    initialize_session(questions)
+    
+    return redirect(url_for('quiz'))
 
 
 @app.route('/load_questions', methods=['POST'])

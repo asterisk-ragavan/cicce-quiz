@@ -5,6 +5,55 @@
 {% block content %}
 <div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
     <div style="max-width: 500px; width: 100%;">
+        {% if student_data %}
+        <!-- Show existing student info -->
+        <div class="card-modern fade-up">
+            <div class="card-header-modern" style="background: linear-gradient(135deg, #10b981, #059669);">
+                <span><i class="bi bi-person-check-fill"></i> Welcome Back!</span>
+            </div>
+            <div class="card-body-modern">
+                <p class="text-muted mb-3">
+                    You are about to start: 
+                    <span class="badge-modern badge-info">{{ quiz_name }}</span>
+                </p>
+                
+                <div class="card-modern mb-4" style="background: rgba(16, 185, 129, 0.1);">
+                    <div class="card-body-modern">
+                        <h5 style="color: var(--primary-dark); margin-bottom: 1rem;">
+                            <i class="bi bi-person-circle"></i> Your Details
+                        </h5>
+                        <div style="display: grid; gap: 0.5rem;">
+                            <p class="mb-0"><strong>Name:</strong> {{ student_data.first_name }} {{ student_data.last_name }}</p>
+                            <p class="mb-0"><strong>Batch:</strong> <span class="badge-modern badge-secondary">{{ student_data.batch }}</span></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                    <i class="bi bi-info-circle"></i> Is this you? Click "Start Quiz" to continue, or "Not Me" to enter different details.
+                </p>
+                
+                <form action="{{ url_for('start_quiz_with_session') }}" method="POST">
+                    <input type="hidden" name="quiz_id" value="{{ quiz_id }}">
+                    <div class="d-flex flex-wrap gap-3">
+                        <button type="submit" class="btn-modern btn-primary-modern" style="flex: 2;">
+                            <i class="bi bi-play-fill"></i> Start Quiz
+                        </button>
+                        <a href="{{ url_for('clear_student_and_redirect', quiz=quiz_id) }}" class="btn-modern btn-outline-modern" style="flex: 1;">
+                            <i class="bi bi-person-x"></i> Not Me
+                        </a>
+                    </div>
+                </form>
+                
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('index') }}" class="text-muted" style="text-decoration: none; font-size: 0.9rem;">
+                        <i class="bi bi-arrow-left"></i> Back to Home
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <!-- Show form for new student -->
         <div class="card-modern fade-up">
             <div class="card-header-modern">
                 <span><i class="bi bi-person-fill"></i> Enter Your Details</span>
@@ -66,6 +115,7 @@
                 </p>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
