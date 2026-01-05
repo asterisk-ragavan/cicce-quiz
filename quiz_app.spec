@@ -52,6 +52,12 @@ a = Analysis(
         'cachelib.simple',
         'sqlite3',
         'database',
+        # System tray support
+        'pystray',
+        'pystray._win32',
+        'PIL',
+        'PIL.Image',
+        'PIL.ImageDraw',
     ],
     hookspath=[],
     hooksconfig={},

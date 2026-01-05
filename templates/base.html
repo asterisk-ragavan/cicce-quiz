@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="description" content="CICCE Quiz Application - Test your knowledge">
     <title>{% block title %}Quiz App{% endblock %}</title>
+    <!-- Preload critical resources -->
+    <link rel="preconnect" href="{{ url_for('static', filename='') }}">
     <!-- Bootstrap 5.3.3 CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <!-- Bootstrap Icons 1.11.3 -->
@@ -16,47 +19,55 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="visually-hidden-focusable" style="position: absolute; top: -40px; left: 0; background: var(--primary-color); color: white; padding: 8px; z-index: 9999;">Skip to main content</a>
+    
     <!-- Modern Navbar -->
     <header class="navbar-modern fade-in">
         <nav class="navbar-container">
             <!-- Brand Section with Logo and Scrolling Title -->
-            <div class="navbar-brand-modern">
+            <a href="{{ url_for('index') }}" class="navbar-brand-modern" style="text-decoration: none; color: inherit;">
                 <img src="{{ url_for('static', filename='images/logo.png') }}"
                      alt="CICCE Logo"
                      class="navbar-logo"
-                     style="width: 80px; height: auto; max-height: 40px;"
+                     style="width: 60px; height: auto; max-height: 40px;"
                      onerror="this.style.display='none'">
                 <div class="title-marquee">
                     <marquee behavior="scroll" direction="left" scrollamount="4">
                         <span>Chandra Institute of Commerce and Computer Education</span>
                     </marquee>
                 </div>
-            </div>
+            </a>
             
             <!-- Desktop Navigation -->
             <div class="navbar-nav-modern desktop-nav">
-                <a class="nav-link-modern" href="{{ url_for('index') }}">
-                    <i class="bi bi-house"></i> Home
+                <a class="nav-link-modern {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+                    <i class="bi bi-house-door"></i> Home
                 </a>
                 {% if session.get('is_teacher') %}
-                <a class="nav-link-modern" href="{{ url_for('teacher_dashboard') }}">
+                <a class="nav-link-modern {% if 'dashboard' in request.endpoint|default('') %}active{% endif %}" href="{{ url_for('teacher_dashboard') }}">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
-                <a class="nav-link-modern" href="{{ url_for('teacher_settings') }}">
+                <a class="nav-link-modern {% if 'analytics' in request.endpoint|default('') %}active{% endif %}" href="{{ url_for('teacher_analytics') }}">
+                    <i class="bi bi-graph-up"></i> Analytics
+                </a>
+                <a class="nav-link-modern {% if 'settings' in request.endpoint|default('') %}active{% endif %}" href="{{ url_for('teacher_settings') }}">
                     <i class="bi bi-gear"></i> Settings
                 </a>
+                <div class="nav-divider" style="width: 1px; height: 24px; background: rgba(0,0,0,0.1); margin: 0 0.5rem;"></div>
                 <span class="user-badge">
                     <i class="bi bi-person-badge"></i> {{ session.get('teacher_username', 'Teacher') }}
                 </span>
-                <a class="nav-link-modern" href="{{ url_for('teacher_logout') }}">
+                <a class="nav-link-modern text-danger" href="{{ url_for('teacher_logout') }}" title="Logout">
                     <i class="bi bi-box-arrow-right"></i> Logout
                 </a>
                 {% elif session.get('student_data') %}
                 <span class="user-badge">
-                    <i class="bi bi-person"></i> {{ session.get('student_data', {}).get('first_name', '') }} ({{ session.get('student_data', {}).get('batch', '') }})
+                    <i class="bi bi-person"></i> {{ session.get('student_data', {}).get('first_name', '') }}
+                    <span style="opacity: 0.8; font-size: 0.75rem; margin-left: 0.25rem;">({{ session.get('student_data', {}).get('batch', '') }})</span>
                 </span>
-                <a class="nav-link-modern" href="{{ url_for('clear_student') }}">
-                    <i class="bi bi-box-arrow-right"></i> Clear
+                <a class="nav-link-modern" href="{{ url_for('clear_student') }}" title="Change student">
+                    <i class="bi bi-arrow-repeat"></i> Change
                 </a>
                 {% else %}
                 <a class="nav-link-modern" href="{{ url_for('teacher_login') }}">
@@ -66,29 +77,42 @@
             </div>
             
             <!-- Mobile Menu Button -->
-            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
-                <i class="bi bi-list"></i>
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="mobileNav">
+                <i class="bi bi-list" id="menuIcon"></i>
             </button>
         </nav>
         
         <!-- Mobile Navigation Dropdown -->
-        <div class="mobile-nav-dropdown" id="mobileNav">
-            <a class="nav-link-modern" href="{{ url_for('index') }}">
-                <i class="bi bi-house"></i> Home
+        <div class="mobile-nav-dropdown" id="mobileNav" role="navigation" aria-label="Mobile navigation">
+            <a class="nav-link-modern {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+                <i class="bi bi-house-door"></i> Home
             </a>
             {% if session.get('is_teacher') %}
+            <div style="padding: 0.5rem 1rem; margin-bottom: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                <small class="text-muted"><i class="bi bi-person-badge"></i> Logged in as {{ session.get('teacher_username', 'Teacher') }}</small>
+            </div>
             <a class="nav-link-modern" href="{{ url_for('teacher_dashboard') }}">
                 <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            <a class="nav-link-modern" href="{{ url_for('teacher_analytics') }}">
+                <i class="bi bi-graph-up"></i> Analytics
             </a>
             <a class="nav-link-modern" href="{{ url_for('teacher_settings') }}">
                 <i class="bi bi-gear"></i> Settings
             </a>
-            <a class="nav-link-modern" href="{{ url_for('teacher_logout') }}">
-                <i class="bi bi-box-arrow-right"></i> Logout
-            </a>
+            <div style="border-top: 1px solid rgba(0,0,0,0.1); margin-top: 0.5rem; padding-top: 0.5rem;">
+                <a class="nav-link-modern text-danger" href="{{ url_for('teacher_logout') }}">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </a>
+            </div>
             {% elif session.get('student_data') %}
+            <div style="padding: 0.75rem 1rem; margin-bottom: 0.5rem; background: rgba(124, 58, 237, 0.1); border-radius: 0.5rem;">
+                <small class="text-muted">Student:</small>
+                <strong style="display: block; color: var(--primary-dark);">{{ session.get('student_data', {}).get('first_name', '') }} {{ session.get('student_data', {}).get('last_name', '') }}</strong>
+                <span class="badge-modern badge-secondary" style="font-size: 0.7rem; margin-top: 0.25rem;">{{ session.get('student_data', {}).get('batch', '') }}</span>
+            </div>
             <a class="nav-link-modern" href="{{ url_for('clear_student') }}">
-                <i class="bi bi-box-arrow-right"></i> Clear Session
+                <i class="bi bi-arrow-repeat"></i> Change Student
             </a>
             {% else %}
             <a class="nav-link-modern" href="{{ url_for('teacher_login') }}">
@@ -98,14 +122,17 @@
         </div>
     </header>
 
-    <!-- Flash Messages -->
+    <!-- Flash Messages - Fixed position for better visibility -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="main-content" style="padding-bottom: 0;">
+        <div class="flash-container" id="flashContainer" style="max-width: 1200px; margin: 0 auto; padding: 1rem 1rem 0;">
             {% for category, message in messages %}
-            <div class="alert-modern alert-{{ category }}-modern">
-                <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' %}x-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
-                {{ message }}
+            <div class="alert-modern alert-{{ category }}-modern" role="alert" style="animation: slideIn 0.3s ease; transition: all 0.4s ease; margin-bottom: 0.5rem;">
+                <i class="bi bi-{% if category == 'success' %}check-circle-fill{% elif category == 'danger' %}x-circle-fill{% elif category == 'warning' %}exclamation-triangle-fill{% else %}info-circle-fill{% endif %}"></i>
+                <span>{{ message }}</span>
+                <button type="button" class="btn-close-alert" onclick="dismissAlert(this.parentElement)" aria-label="Dismiss" style="background: none; border: none; cursor: pointer; margin-left: auto; padding: 0.25rem; opacity: 0.7;">
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
             {% endfor %}
         </div>
@@ -113,7 +140,7 @@
     {% endwith %}
 
     <!-- Main Content -->
-    <main class="main-content fade-up">
+    <main id="main-content" class="main-content fade-up" role="main">
         {% block content %}{% endblock %}
     </main>
 
@@ -143,8 +170,50 @@
     <script>
         function toggleMobileMenu() {
             const mobileNav = document.getElementById('mobileNav');
-            mobileNav.classList.toggle('show');
+            const menuBtn = document.querySelector('.mobile-menu-btn');
+            const menuIcon = document.getElementById('menuIcon');
+            const isExpanded = mobileNav.classList.toggle('show');
+            
+            menuBtn.setAttribute('aria-expanded', isExpanded);
+            menuIcon.className = isExpanded ? 'bi bi-x-lg' : 'bi bi-list';
         }
+        
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const mobileNav = document.getElementById('mobileNav');
+            const menuBtn = document.querySelector('.mobile-menu-btn');
+            if (!mobileNav.contains(e.target) && !menuBtn.contains(e.target) && mobileNav.classList.contains('show')) {
+                toggleMobileMenu();
+            }
+        });
+        
+        // Smooth dismiss function for alerts
+        function dismissAlert(alert) {
+            alert.style.opacity = '0';
+            alert.style.transform = 'translateY(-10px)';
+            alert.style.marginBottom = '0';
+            alert.style.paddingTop = '0';
+            alert.style.paddingBottom = '0';
+            alert.style.maxHeight = '0';
+            alert.style.overflow = 'hidden';
+            setTimeout(function() { 
+                alert.remove();
+                // Remove container if empty
+                const container = document.getElementById('flashContainer');
+                if (container && container.children.length === 0) {
+                    container.style.padding = '0';
+                }
+            }, 400);
+        }
+        
+        // Auto-dismiss flash messages after 5 seconds
+        setTimeout(function() {
+            document.querySelectorAll('.alert-modern').forEach(function(alert, index) {
+                setTimeout(function() {
+                    dismissAlert(alert);
+                }, index * 150); // Stagger dismissal for multiple alerts
+            });
+        }, 5000);
     </script>
     {% block extra_js %}{% endblock %}
 </body>

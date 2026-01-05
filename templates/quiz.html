@@ -1,49 +1,117 @@
 {% extends "base.html" %}
 
-{% block title %}{{ quiz_title }} - Quiz App{% endblock %}
+{% block title %}{{ quiz_title }} - Question {{ question_index + 1 }}{% endblock %}
 
 {% block extra_css %}
 <style>
+    /* Quiz Card States */
     .quiz-card-wrapper.correct { 
-        background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05)) !important;
-        border-color: var(--success-color) !important;
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(34, 197, 94, 0.04)) !important;
+        border: 2px solid var(--success-color) !important;
     }
     .quiz-card-wrapper.wrong { 
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05)) !important;
-        border-color: var(--danger-color) !important;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.04)) !important;
+        border: 2px solid var(--danger-color) !important;
     }
+    
+    /* Timer Display - More prominent */
     .timer-display {
         position: fixed;
-        top: 80px;
+        top: 90px;
         right: 20px;
         background: var(--card-bg);
-        backdrop-filter: var(--glass-blur);
         padding: 0.75rem 1.25rem;
         border-radius: 1rem;
-        box-shadow: var(--shadow-md);
+        box-shadow: var(--shadow-lg);
         z-index: 100;
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        font-weight: 600;
+        font-weight: 700;
+        font-size: 1.1rem;
+        border: 2px solid transparent;
     }
     .timer-display.warning {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
-        color: #d97706;
-        animation: pulse 1s infinite;
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.08));
+        border-color: var(--warning-color);
+        color: #b45309;
     }
     .timer-display.danger {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
-        color: #dc2626;
-        animation: pulse 0.5s infinite;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.08));
+        border-color: var(--danger-color);
+        color: #b91c1c;
+        animation: pulse-timer 0.5s ease-in-out infinite;
     }
-    @keyframes pulse {
+    @keyframes pulse-timer {
         0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.02); }
+        50% { transform: scale(1.03); }
     }
-    .partial-credit-badge {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
+    
+    /* Question Text Styling */
+    .question-text {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: var(--primary-dark);
+        line-height: 1.6;
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Answer Options - Larger touch targets */
+    .answer-option {
+        padding: 1rem 1.25rem;
+        margin: 0.5rem 0;
+        border-radius: 0.75rem;
+        background: rgba(124, 58, 237, 0.06);
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .answer-option:hover {
+        background: rgba(124, 58, 237, 0.12);
+        border-color: rgba(124, 58, 237, 0.3);
+    }
+    .answer-option:has(input:checked) {
+        background: rgba(124, 58, 237, 0.15);
+        border-color: var(--primary-color);
+    }
+    .answer-option input[type="radio"],
+    .answer-option input[type="checkbox"] {
+        width: 1.25rem;
+        height: 1.25rem;
+        accent-color: var(--primary-color);
+        flex-shrink: 0;
+    }
+    .answer-option span {
+        flex: 1;
+        font-size: 1rem;
+    }
+    
+    /* Navigation Footer */
+    .quiz-nav-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(0,0,0,0.08);
+    }
+    .quiz-nav-footer .btn-modern {
+        flex: 1;
+        min-width: 120px;
+    }
+    
+    /* Mobile responsive */
+    @media (max-width: 576px) {
+        .timer-display {
+            position: static;
+            margin-bottom: 1rem;
+            justify-content: center;
+        }
+        .quiz-nav-footer .btn-modern {
+            flex: 1 1 45%;
+        }
     }
 </style>
 {% endblock %}
@@ -51,103 +119,133 @@
 {% block content %}
 <!-- Timer Display -->
 {% if time_limit_minutes and time_limit_minutes > 0 %}
-<div class="timer-display" id="timerDisplay">
-    <i class="bi bi-clock"></i>
+<div class="timer-display" id="timerDisplay" role="timer" aria-live="polite">
+    <i class="bi bi-stopwatch"></i>
     <span id="timerText">--:--</span>
 </div>
 {% endif %}
 
 <div class="d-flex justify-content-center">
     <div style="max-width: 800px; width: 100%;">
-        <div class="card-modern quiz-card-wrapper fade-up" id="quizCard">
-            <div class="card-header-modern">
-                <span><i class="bi bi-question-circle"></i> Question {{ question_index + 1 }} of {{ total_questions }}</span>
-                <span class="d-flex gap-2 align-items-center">
-                    <button type="button" class="btn-modern {% if question_index in session.get('flagged_questions', []) %}btn-warning-modern{% endif %}" 
-                            id="flagButton" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; {% if question_index not in session.get('flagged_questions', []) %}background: rgba(255,255,255,0.9); color: #333;{% endif %}"
-                            title="Flag for review">
-                        <i class="bi bi-flag{% if question_index in session.get('flagged_questions', []) %}-fill{% endif %}"></i> Flag
-                    </button>
-                    <span class="badge-modern badge-success">
+        <!-- Quiz Progress Header -->
+        <div class="card-modern fade-up" style="margin-bottom: 1rem; padding: 0.75rem 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                    <span style="font-weight: 600; color: var(--primary-dark);">{{ quiz_title }}</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span class="badge-modern badge-success" title="Correct answers">
                         <i class="bi bi-check-lg"></i> {{ score }}
                     </span>
-                    <span class="badge-modern badge-danger">
+                    <span class="badge-modern badge-danger" title="Wrong attempts">
                         <i class="bi bi-x-lg"></i> {{ wrong_attempts }}
                     </span>
-                </span>
-            </div>
-            <div class="card-body-modern">
-                <h5 style="font-weight: 600; color: var(--primary-dark); margin-bottom: 1.5rem; line-height: 1.5;">
-                    {{ question.question }}
-                </h5>
-                
-                {% if question.answer | length > 1 %}
-                <div class="d-flex gap-2 mb-3">
-                    <span class="badge-modern badge-info">
-                        <i class="bi bi-check2-square"></i> Multiple Select
-                    </span>
-                    {% if partial_credit_enabled %}
-                    <span class="badge-modern badge-secondary partial-credit-badge">
-                        <i class="bi bi-pie-chart"></i> Partial Credit
-                    </span>
-                    {% endif %}
                 </div>
-                {% endif %}
-                
-                <form id="quizForm">
-                    {% for option in question.options %}
-                        <label class="form-check-modern">
-                            {% if question.answer | length > 1 %}
-                            <input type="checkbox" name="options" value="{{ option }}" id="option{{ loop.index }}">
-                            {% else %}
-                            <input type="radio" name="options" value="{{ option }}" id="option{{ loop.index }}">
-                            {% endif %}
-                            <span>{{ option }}</span>
-                        </label>
-                    {% endfor %}
-                </form>
-                
-                <div id="feedback" style="margin-top: 1rem; font-weight: 600;"></div>
-                <div id="correctAnswers" class="text-primary" style="display: none; margin-top: 1rem;"></div>
             </div>
-            <div class="card-footer-modern">
-                <div class="d-flex flex-wrap gap-2">
-                    <button type="button" class="btn-modern btn-secondary-modern" id="previousButton">
-                        <i class="bi bi-arrow-left"></i> Previous
-                    </button>
-                    <button type="button" class="btn-modern btn-primary-modern" id="submitAnswer">
-                        <i class="bi bi-check-lg"></i> Submit
-                    </button>
-                    {% if question_index == total_questions - 1 %}
-                    <!-- Last question - show Review & Submit button -->
-                    <button type="button" class="btn-modern btn-success-modern" id="nextButton">
-                        <i class="bi bi-list-check"></i> Review & Submit
-                    </button>
-                    {% else %}
-                    <!-- Not last question - show Next button -->
-                    <button type="button" class="btn-modern btn-info-modern" id="nextButton">
-                        Next <i class="bi bi-arrow-right"></i>
-                    </button>
-                    {% endif %}
-                    {% if show_answers %}
-                    <button type="button" class="btn-modern btn-outline-modern" id="viewAnswerButton">
-                        <i class="bi bi-eye"></i> View Answer
-                    </button>
-                    <button type="button" class="btn-modern btn-warning-modern" id="viewExplanationButton" style="display: none;">
-                        <i class="bi bi-search"></i> Explain
-                    </button>
-                    {% endif %}
+            <!-- Progress Bar -->
+            <div style="margin-top: 0.75rem;">
+                {% set progress = ((question_index + 1) / total_questions * 100) | round(0) %}
+                <div class="progress-modern" style="height: 0.5rem; position: relative;">
+                    <div class="progress-bar-modern progress-bar-primary" style="width: {{ progress }}%"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+                    <small class="text-muted">Question {{ question_index + 1 }} of {{ total_questions }}</small>
+                    <small class="text-muted">{{ progress }}% complete</small>
                 </div>
             </div>
         </div>
         
-        <!-- Progress Bar -->
-        <div style="margin-top: 1.5rem;">
-            <div class="progress-modern" style="position: relative;">
-                {% set progress = ((question_index + 1) / total_questions * 100) | round(0) %}
-                <div class="progress-bar-modern progress-bar-primary" style="width: {{ progress }}%"></div>
-                <span class="progress-text-centered">{{ progress }}% Complete</span>
+        <!-- Main Question Card -->
+        <div class="card-modern quiz-card-wrapper fade-up" id="quizCard">
+            <div class="card-header-modern" style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 1rem;">
+                    <i class="bi bi-question-circle"></i> Question {{ question_index + 1 }}
+                    {% if question.answer | length > 1 %}
+                    <span class="badge-modern badge-info" style="font-size: 0.7rem; margin-left: 0.5rem; vertical-align: middle;">
+                        Select Multiple
+                    </span>
+                    {% endif %}
+                </span>
+                <button type="button" class="btn-modern {% if question_index in session.get('flagged_questions', []) %}btn-warning-modern{% else %}btn-outline-modern{% endif %}" 
+                        id="flagButton" 
+                        style="padding: 0.25rem 0.75rem; font-size: 0.8rem; {% if question_index not in session.get('flagged_questions', []) %}background: rgba(255,255,255,0.9); color: #333;{% endif %}"
+                        title="Flag this question for review later"
+                        aria-pressed="{{ 'true' if question_index in session.get('flagged_questions', []) else 'false' }}">
+                    <i class="bi bi-flag{% if question_index in session.get('flagged_questions', []) %}-fill{% endif %}"></i>
+                    <span class="d-none d-sm-inline">Flag</span>
+                </button>
             </div>
+            <div class="card-body-modern">
+                <!-- Question Text -->
+                <h2 class="question-text">{{ question.question }}</h2>
+                
+                <!-- Multi-select hint -->
+                {% if question.answer | length > 1 %}
+                <div class="alert-modern alert-info-modern" style="padding: 0.5rem 0.75rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                    <i class="bi bi-info-circle"></i>
+                    Select all correct answers ({{ question.answer | length }} options)
+                    {% if partial_credit_enabled %}
+                    <span class="badge-modern badge-secondary" style="font-size: 0.7rem; margin-left: 0.5rem;">Partial credit available</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <!-- Answer Options -->
+                <form id="quizForm" role="group" aria-label="Answer options">
+                    {% for option in question.options %}
+                    <label class="answer-option" for="option{{ loop.index }}">
+                        {% if question.answer | length > 1 %}
+                        <input type="checkbox" name="options" value="{{ option }}" id="option{{ loop.index }}">
+                        {% else %}
+                        <input type="radio" name="options" value="{{ option }}" id="option{{ loop.index }}">
+                        {% endif %}
+                        <span>{{ option }}</span>
+                    </label>
+                    {% endfor %}
+                </form>
+                
+                <!-- Feedback Area -->
+                <div id="feedback" style="margin-top: 1rem; font-weight: 600; font-size: 1rem;" role="status" aria-live="polite"></div>
+                <div id="correctAnswers" class="text-primary" style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: rgba(124, 58, 237, 0.1); border-radius: 0.5rem;"></div>
+            </div>
+            
+            <!-- Navigation Footer -->
+            <div class="card-footer-modern">
+                <div class="quiz-nav-footer">
+                    <button type="button" class="btn-modern btn-secondary-modern" id="previousButton" {% if question_index == 0 %}disabled{% endif %}>
+                        <i class="bi bi-arrow-left"></i> Previous
+                    </button>
+                    <button type="button" class="btn-modern btn-primary-modern" id="submitAnswer">
+                        <i class="bi bi-check-lg"></i> Submit Answer
+                    </button>
+                    {% if question_index == total_questions - 1 %}
+                    <button type="button" class="btn-modern btn-success-modern" id="nextButton">
+                        <i class="bi bi-list-check"></i> Review & Finish
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn-modern btn-info-modern" id="nextButton">
+                        Next <i class="bi bi-arrow-right"></i>
+                    </button>
+                    {% endif %}
+                </div>
+                {% if show_answers %}
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(0,0,0,0.05);">
+                    <button type="button" class="btn-modern btn-outline-modern" id="viewAnswerButton" style="flex: 1; font-size: 0.9rem;">
+                        <i class="bi bi-eye"></i> Show Answer
+                    </button>
+                    <button type="button" class="btn-modern btn-warning-modern" id="viewExplanationButton" style="display: none; flex: 1; font-size: 0.9rem;">
+                        <i class="bi bi-search"></i> Search Explanation
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quick Navigation Hint -->
+        <div class="text-center" style="margin-top: 1rem;">
+            <small class="text-muted">
+                <i class="bi bi-keyboard"></i> Tip: Press Enter after selecting to submit your answer
+            </small>
         </div>
     </div>
 </div>
@@ -201,7 +299,7 @@
                 remainingSeconds = data.remaining_seconds;
             }
         });
-    }, 30000); // Sync every 30 seconds
+    }, 30000);
     {% endif %}
 
     {% if show_answers %}
@@ -228,8 +326,8 @@
                     alert(data.error);
                     return;
                 }
-                $('#correctAnswers').html('<i class="bi bi-check-circle-fill"></i> Correct Answer: ' + data.correct_answers.join('<br> '));
-                $('#correctAnswers').css('color', 'var(--primary-color)').show();
+                $('#correctAnswers').html('<i class="bi bi-check-circle-fill text-success"></i> <strong>Correct Answer:</strong> ' + data.correct_answers.join(', '));
+                $('#correctAnswers').show();
                 $('#viewExplanationButton').show();
             }
         });
@@ -241,6 +339,11 @@
         $("input[name='options']:checked").each(function() {
             selectedOptions.push($(this).val());
         });
+        
+        if (selectedOptions.length === 0) {
+            $('#feedback').text('Please select an answer').css('color', 'var(--warning-color)');
+            return;
+        }
 
         $.ajax({
             url: '/check_answer',
@@ -249,15 +352,15 @@
             data: JSON.stringify({ selected_options: selectedOptions }),
             success: function(data) {
                 if (data.result === 'correct') {
-                    $('#feedback').text('✓ Correct! Moving to the next question...').css('color', 'var(--success-color)');
+                    $('#feedback').html('<i class="bi bi-check-circle-fill"></i> Correct! Moving to next question...').css('color', 'var(--success-color)');
                     $('#quizCard').addClass("correct").removeClass("wrong"); 
                     $('#nextButton').prop('disabled', false);
 
                     questionTimeout = setTimeout(function() {
                         $('#nextButton').click();
-                    }, 1000);
+                    }, 1200);
                 } else {
-                    $('#feedback').text('✗ Incorrect, try again!').css('color', 'var(--danger-color)');
+                    $('#feedback').html('<i class="bi bi-x-circle-fill"></i> Incorrect. Try again!').css('color', 'var(--danger-color)');
                     $('#quizCard').addClass("wrong").removeClass("correct"); 
                 }
             }
@@ -292,13 +395,23 @@
                 const icon = btn.find('i');
                 if (data.flagged) {
                     btn.removeClass('btn-outline-modern').addClass('btn-warning-modern');
+                    btn.attr('aria-pressed', 'true');
                     icon.removeClass('bi-flag').addClass('bi-flag-fill');
                 } else {
                     btn.removeClass('btn-warning-modern').addClass('btn-outline-modern');
+                    btn.attr('aria-pressed', 'false');
                     icon.removeClass('bi-flag-fill').addClass('bi-flag');
                 }
             }
         });
+    });
+    
+    // Keyboard shortcuts
+    $(document).keydown(function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            $('#submitAnswer').click();
+        }
     });
 </script>
 {% endblock %}
