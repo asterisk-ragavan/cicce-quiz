@@ -48,7 +48,6 @@ Session(app)
 # Path configuration
 QUESTIONS_FOLDER: str = os.path.join(EXE_DIR, 'questions')
 DATA_DIR: str = os.path.join(EXE_DIR, 'data')
-TEACHERS_FILE: str = os.path.join(BUNDLE_DIR, 'data', 'teachers.json')
 DATABASE_FILE: str = os.path.join(DATA_DIR, 'quiz_app.db')
 
 # Ensure directories exist
@@ -128,12 +127,28 @@ def init_database() -> None:
         )
     ''')
     
+    # Teachers table - store admin credentials
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS teachers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     # Create indexes
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_questions_quiz ON quiz_questions(quiz_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_results_quiz ON quiz_results(quiz_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_results_batch ON quiz_results(batch)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_results_timestamp ON quiz_results(timestamp)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_permissions_quiz ON quiz_permissions(quiz_id)')
+    
+    # Create default admin user if no teachers exist
+    cursor.execute('SELECT COUNT(*) FROM teachers')
+    if cursor.fetchone()[0] == 0:
+        default_hash = generate_password_hash('password', method='pbkdf2:sha256')
+        cursor.execute('INSERT INTO teachers (username, password_hash) VALUES (?, ?)', ('admin', default_hash))
     
     conn.commit()
     conn.close()
@@ -255,23 +270,30 @@ if any(sync_results.values()):
 
 # ============ HELPER FUNCTIONS ============
 
-def load_teachers() -> dict[str, str]:
-    """Load teacher credentials from JSON file"""
-    if os.path.exists(TEACHERS_FILE):
-        with open(TEACHERS_FILE, 'r', encoding='utf8') as f:
-            return json.load(f)
-    return {}
-
-
 def verify_teacher_password(username: str, password: str) -> bool:
-    """Verify teacher password with hash support"""
-    teachers = load_teachers()
-    if username not in teachers:
+    """Verify teacher password from database"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT password_hash FROM teachers WHERE username = ?', (username,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
         return False
-    stored_password = teachers[username]
-    if stored_password.startswith(('pbkdf2:', 'scrypt:')):
-        return check_password_hash(stored_password, password)
-    return stored_password == password
+    
+    return check_password_hash(row['password_hash'], password)
+
+
+def update_teacher_password(username: str, new_password: str) -> bool:
+    """Update teacher password in database"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    password_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
+    cursor.execute('UPDATE teachers SET password_hash = ? WHERE username = ?', (password_hash, username))
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
 
 
 def hash_password(password: str) -> str:
