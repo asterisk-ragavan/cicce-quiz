@@ -34,22 +34,13 @@ os.chdir(EXE_DIR)
 
 # Create necessary directories next to the exe
 data_dir: str = os.path.join(EXE_DIR, 'data')
-results_dir: str = os.path.join(data_dir, 'results')
 questions_dir: str = os.path.join(EXE_DIR, 'questions')
 
 os.makedirs(data_dir, exist_ok=True)
-os.makedirs(results_dir, exist_ok=True)
 os.makedirs(questions_dir, exist_ok=True)
 
-# Copy default permissions.json if it doesn't exist
-permissions_dest: str = os.path.join(data_dir, 'permissions.json')
-if not os.path.exists(permissions_dest):
-    permissions_src: str = os.path.join(BUNDLE_DIR, 'data', 'permissions.json')
-    if os.path.exists(permissions_src):
-        shutil.copy(permissions_src, permissions_dest)
-    else:
-        with open(permissions_dest, 'w') as f:
-            f.write('{}')
+# Note: Database (quiz_app.db) is created automatically by app.py on startup
+# All data (quizzes, results, permissions, teachers) stored in SQLite database
 
 # Copy sample questions if questions folder is empty
 if not os.listdir(questions_dir):
@@ -75,7 +66,7 @@ if __name__ == '__main__':
     print("=" * 50)
     print(f"\n  Starting server at: http://127.0.0.1:5000")
     print(f"  Questions folder: {questions_dir}")
-    print(f"  Results folder: {results_dir}")
+    print(f"  Database: {os.path.join(data_dir, 'quiz_app.db')}")
     print("\n  Press Ctrl+C to stop the server")
     print("=" * 50)
     

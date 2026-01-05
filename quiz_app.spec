@@ -8,6 +8,11 @@ WINDOWS 10+ OPTIMIZED:
 - Download from: https://www.python.org/downloads/
 - Install requirements: pip install -r requirements.txt
 - Build with: pyinstaller --clean quiz_app.spec
+
+DATABASE ARCHITECTURE:
+- All data stored in SQLite database (data/quiz_app.db)
+- Database auto-created on first run with default admin/password
+- JSON quiz files auto-imported from questions/ folder
 """
 
 import os
@@ -19,7 +24,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(SPEC))
 block_cipher = None
 
 a = Analysis(
-    ['run_app.py'],
+    ['run_app.py', 'app.py', 'database.py'],
     pathex=[CURRENT_DIR],
     binaries=[],
     datas=[
@@ -27,8 +32,6 @@ a = Analysis(
         ('templates', 'templates'),
         # Bundle static files inside exe (CSS, JS, fonts for offline use)
         ('static', 'static'),
-        # Bundle data folder (teachers.json, permissions.json defaults)
-        ('data', 'data'),
         # Bundle questions as defaults (copied to external folder on first run)
         ('questions', 'questions'),
     ],
@@ -42,6 +45,7 @@ a = Analysis(
         'cachelib.file',
         'cachelib.simple',
         'sqlite3',
+        'database',
     ],
     hookspath=[],
     hooksconfig={},

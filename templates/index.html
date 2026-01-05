@@ -21,15 +21,20 @@
 
 <!-- Quiz Cards Grid -->
 <div class="grid-container grid-cols-3" style="margin-top: 2rem;">
-    {% for file in question_files %}
+    {% for quiz in quizzes %}
         <div class="card-modern fade-up delay-{{ loop.index }}">
             <div class="card-body-modern text-center">
                 <i class="bi bi-file-earmark-text card-icon text-primary"></i>
-                <h5 style="font-weight: 600; color: var(--primary-dark); margin-bottom: 0.5rem;">{{ file }}</h5>
-                <p class="text-muted" style="font-size: 0.9rem;">This quiz contains questions on various topics.</p>
+                <h5 style="font-weight: 600; color: var(--primary-dark); margin-bottom: 0.5rem;">{{ quiz.title }}</h5>
+                <p class="text-muted" style="font-size: 0.9rem;">
+                    <i class="bi bi-question-circle"></i> {{ quiz.question_count }} questions
+                    {% if quiz.submission_count > 0 %}
+                    <br><i class="bi bi-people"></i> {{ quiz.submission_count }} submissions
+                    {% endif %}
+                </p>
             </div>
             <div class="card-footer-modern">
-                <button class="btn-modern btn-primary-modern w-100 loadQuestionsButton" data-file="{{ file }}">
+                <button class="btn-modern btn-primary-modern w-100 loadQuestionsButton" data-quiz-id="{{ quiz.quiz_id }}">
                     <i class="bi bi-play-fill"></i> Start Quiz
                 </button>
             </div>
@@ -37,7 +42,7 @@
     {% endfor %}
 </div>
 
-{% if not question_files %}
+{% if not quizzes %}
 <div class="alert-modern alert-warning-modern text-center" style="margin-top: 2rem;">
     <i class="bi bi-exclamation-triangle"></i> No quizzes available. Please add quiz JSON files to the questions folder.
 </div>
@@ -72,18 +77,20 @@
 <script>
     // Event handler to load questions when a button is clicked
     $('.loadQuestionsButton').click(function() {
-        var selectedFile = $(this).data('file');
+        var quizId = $(this).data('quiz-id');
 
-        // Make an AJAX call to load the selected file
+        // Make an AJAX call to load the selected quiz
         $.ajax({
             url: '/load_questions',
             type: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ file_name: selectedFile }),
+            data: JSON.stringify({ quiz_id: quizId }),
             success: function(data) {
                 // Check if redirect is needed (student details not set)
                 if (data && data.redirect) {
                     window.location.href = data.redirect;
+                } else if (data && data.error) {
+                    alert(data.error);
                 } else {
                     window.location.href = "{{ url_for('quiz') }}";
                 }

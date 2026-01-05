@@ -4,41 +4,35 @@ Quiz Application - Main Flask Application
 Optimized for Python 3.13+ and Windows 10+
 
 Features:
-- SQLite database for results storage
+- Full SQLite database for quizzes, questions, and results
+- Auto-import JSON quiz files on startup
+- Per-question analytics tracking
 - Password hashing for teacher accounts
 - Type hints throughout
-- Modern Flask 3.0+ patterns
 """
 
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, flash, Response
-from werkzeug.security import generate_password_hash, check_password_hash
 import random
-import json
 import os
 import sys
-import sqlite3
-from datetime import datetime
 from flask_session import Session
 from typing import Any
 
+# Import database functions
+import database as db
+
 # Type aliases for better readability
 QuestionDict = dict[str, Any]
-StudentData = dict[str, str]
-ResultData = dict[str, Any]
 
 # Path Configuration - Handle both normal and frozen (exe) states
 if getattr(sys, 'frozen', False):
-    # Running as compiled executable (single file)
-    # BUNDLE_DIR = where bundled files are extracted (templates, static, teachers.json)
     BUNDLE_DIR: str = sys._MEIPASS
-    # EXE_DIR = where the exe is located (for questions, results, permissions)
     EXE_DIR: str = os.path.dirname(sys.executable)
 else:
-    # Running as script - everything in same folder
     BUNDLE_DIR: str = os.path.dirname(os.path.abspath(__file__))
     EXE_DIR: str = os.path.dirname(os.path.abspath(__file__))
 
-# Initialize Flask app with BUNDLED templates and static files
+# Initialize Flask app
 app = Flask(__name__,
             template_folder=os.path.join(BUNDLE_DIR, 'templates'),
             static_folder=os.path.join(BUNDLE_DIR, 'static'))
@@ -47,69 +41,28 @@ app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = os.path.join(EXE_DIR, 'flask_session')
 Session(app)
 
-# Path configuration:
-# - BUNDLED (inside exe): templates, static, teachers.json
-# - EXTERNAL (next to exe): questions folder, data/results, data/permissions.json
-QUESTIONS_FOLDER: str = os.path.join(EXE_DIR, 'questions')  # External - can add new quizzes
-DATA_DIR: str = os.path.join(EXE_DIR, 'data')  # External - for writable data
-TEACHERS_FILE: str = os.path.join(BUNDLE_DIR, 'data', 'teachers.json')  # Bundled (read-only)
-PERMISSIONS_FILE: str = os.path.join(DATA_DIR, 'permissions.json')  # External (writable)
-RESULTS_DIR: str = os.path.join(DATA_DIR, 'results')  # External (writable) - kept for backward compatibility
-DATABASE_FILE: str = os.path.join(DATA_DIR, 'quiz_results.db')  # SQLite database
+# Path configuration
+QUESTIONS_FOLDER: str = os.path.join(EXE_DIR, 'questions')
+DATA_DIR: str = os.path.join(EXE_DIR, 'data')
+DATABASE_FILE: str = os.path.join(DATA_DIR, 'quiz_app.db')
 
-# Ensure data directories exist
+# Ensure directories exist
 os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(RESULTS_DIR, exist_ok=True)
+os.makedirs(QUESTIONS_FOLDER, exist_ok=True)
 
-quiz_title: str = ''
+# Initialize database module with paths
+db.init_db(DATABASE_FILE, QUESTIONS_FOLDER)
 
-# ============ DATABASE FUNCTIONS ============
+# Initialize database and sync quizzes on startup
+db.init_database()
+sync_results = db.sync_quizzes_from_folder()
+if sync_results['imported']:
+    print(f"Imported quizzes: {', '.join(sync_results['imported'])}")
+if sync_results['updated']:
+    print(f"Updated quizzes: {', '.join(sync_results['updated'])}")
 
-def init_database() -> None:
-    """Initialize SQLite database with required tables"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    
-    # Create results table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS quiz_results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            quiz_id TEXT NOT NULL,
-            quiz_file TEXT NOT NULL,
-            first_name TEXT NOT NULL,
-            last_name TEXT NOT NULL,
-            batch TEXT NOT NULL,
-            score INTEGER NOT NULL,
-            max_score INTEGER NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            attempt_details TEXT NOT NULL
-        )
-    ''')
-    
-    # Create index for faster queries
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_quiz_id ON quiz_results(quiz_id)
-    ''')
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_batch ON quiz_results(batch)
-    ''')
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_timestamp ON quiz_results(timestamp)
-    ''')
-    
-    conn.commit()
-    conn.close()
 
-def get_db_connection() -> sqlite3.Connection:
-    """Get a database connection with row factory"""
-    conn = sqlite3.connect(DATABASE_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# Initialize database on startup
-init_database()
-
-# ============ HELPER FUNCTIONS ============
+# ============ SESSION HELPERS ============
 
 def initialize_session(questions: list[QuestionDict]) -> None:
     """Initialize session variables for a new quiz"""
@@ -118,379 +71,128 @@ def initialize_session(questions: list[QuestionDict]) -> None:
     session['current_question'] = 0
     session['is_correct'] = {}
     session['user_answers'] = {}
-    session['questions'] = random.sample(questions, len(questions))
+    session['questions'] = questions
     session['attempts'] = {}
     session['result_saved'] = False
     session.modified = True
 
-def load_teachers() -> dict[str, str]:
-    """Load teacher credentials from JSON file"""
-    if os.path.exists(TEACHERS_FILE):
-        with open(TEACHERS_FILE, 'r', encoding='utf8') as f:
-            return json.load(f)
-    return {}
-
-def verify_teacher_password(username: str, password: str) -> bool:
-    """Verify teacher password with hash support"""
-    teachers = load_teachers()
-    
-    if username not in teachers:
-        return False
-    
-    stored_password = teachers[username]
-    
-    # Check if password is hashed (starts with hash method identifier)
-    if stored_password.startswith(('pbkdf2:', 'scrypt:')):
-        return check_password_hash(stored_password, password)
-    else:
-        # Legacy plain text password - still works but should be migrated
-        return stored_password == password
-
-def hash_password(password: str) -> str:
-    """Generate a secure password hash"""
-    return generate_password_hash(password, method='pbkdf2:sha256')
-
-def load_permissions() -> dict[str, list[str]]:
-    """Load permissions from JSON file"""
-    if os.path.exists(PERMISSIONS_FILE):
-        with open(PERMISSIONS_FILE, 'r', encoding='utf8') as f:
-            return json.load(f)
-    return {}
-
-def save_permissions(permissions: dict[str, list[str]]) -> None:
-    """Save permissions to JSON file"""
-    with open(PERMISSIONS_FILE, 'w', encoding='utf8') as f:
-        json.dump(permissions, f, indent=2)
-
-def check_answer_permission(quiz_file: str, batch: str) -> bool:
-    """Check if a batch is allowed to see answers for a quiz"""
-    permissions = load_permissions()
-    allowed_batches = permissions.get(quiz_file, [])
-    return batch in allowed_batches
-
-def save_student_result_to_db(
-    student_data: StudentData,
-    quiz_id: str,
-    quiz_file: str,
-    score: int,
-    max_score: int,
-    questions: list[QuestionDict],
-    user_answers: dict[int | str, list[str]],
-    is_correct: dict[int | str, bool]
-) -> int:
-    """Save student result to SQLite database"""
-    # Build attempt details
-    attempt_details: list[dict[str, Any]] = []
-    for idx, question in enumerate(questions):
-        # Handle both string and integer keys
-        user_selected = user_answers.get(idx, user_answers.get(str(idx), []))
-        correct = is_correct.get(idx, is_correct.get(str(idx), False))
-        
-        # Ensure user_selected is a list
-        if not isinstance(user_selected, list):
-            user_selected = [user_selected] if user_selected else []
-        
-        attempt_details.append({
-            "question_text": question['question'],
-            "options": question['options'],
-            "correct_option": question['answer'],
-            "selected_option": user_selected,
-            "is_correct": correct
-        })
-    
-    # Insert into database
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        INSERT INTO quiz_results 
-        (quiz_id, quiz_file, first_name, last_name, batch, score, max_score, attempt_details)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        quiz_id,
-        quiz_file,
-        student_data['first_name'],
-        student_data['last_name'],
-        student_data['batch'],
-        score,
-        max_score,
-        json.dumps(attempt_details, ensure_ascii=False)
-    ))
-    
-    result_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    
-    # Also save to JSON for backward compatibility
-    save_student_result_to_json(
-        student_data, quiz_id, quiz_file, score, max_score,
-        questions, user_answers, is_correct
-    )
-    
-    return result_id
-
-def save_student_result_to_json(
-    student_data: StudentData,
-    quiz_id: str,
-    quiz_file: str,
-    score: int,
-    max_score: int,
-    questions: list[QuestionDict],
-    user_answers: dict[int | str, list[str]],
-    is_correct: dict[int | str, bool]
-) -> str:
-    """Save student result to a JSON file (backward compatibility)"""
-    # Create quiz-specific results folder
-    quiz_results_dir = os.path.join(RESULTS_DIR, quiz_id)
-    os.makedirs(quiz_results_dir, exist_ok=True)
-    
-    # Generate timestamp
-    timestamp = datetime.now()
-    timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    timestamp_file = timestamp.strftime("%Y%m%d_%H%M%S")
-    
-    # Build attempt details
-    attempt_details: list[dict[str, Any]] = []
-    for idx, question in enumerate(questions):
-        user_selected = user_answers.get(idx, user_answers.get(str(idx), []))
-        correct = is_correct.get(idx, is_correct.get(str(idx), False))
-        
-        if not isinstance(user_selected, list):
-            user_selected = [user_selected] if user_selected else []
-        
-        attempt_details.append({
-            "question_text": question['question'],
-            "options": question['options'],
-            "correct_option": question['answer'],
-            "selected_option": user_selected,
-            "is_correct": correct
-        })
-    
-    # Build result object
-    result_data: ResultData = {
-        "student_info": {
-            "first_name": student_data['first_name'],
-            "last_name": student_data['last_name'],
-            "batch": student_data['batch']
-        },
-        "quiz_meta": {
-            "quiz_id": quiz_id,
-            "quiz_file": quiz_file,
-            "timestamp": timestamp_str,
-            "total_score": score,
-            "max_score": max_score
-        },
-        "attempt_details": attempt_details
-    }
-    
-    # Generate filename
-    safe_fname = f"{student_data['batch']}_{student_data['first_name']}_{student_data['last_name']}_{timestamp_file}.json"
-    safe_fname = "".join(c if c.isalnum() or c in ['_', '-', '.'] else '_' for c in safe_fname)
-    
-    file_path = os.path.join(quiz_results_dir, safe_fname)
-    
-    with open(file_path, 'w', encoding='utf8') as f:
-        json.dump(result_data, f, indent=2, ensure_ascii=False)
-    
-    return file_path
-
-def get_quiz_results_summary() -> list[dict[str, Any]]:
-    """Get summary of all quiz results from database"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT quiz_id, COUNT(*) as submission_count
-        FROM quiz_results
-        GROUP BY quiz_id
-        ORDER BY quiz_id
-    ''')
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    summary = [{'quiz_id': row['quiz_id'], 'submission_count': row['submission_count']} for row in rows]
-    
-    # Also check JSON folders for any results not yet in DB
-    if os.path.exists(RESULTS_DIR):
-        db_quiz_ids = {s['quiz_id'] for s in summary}
-        for quiz_folder in os.listdir(RESULTS_DIR):
-            quiz_path = os.path.join(RESULTS_DIR, quiz_folder)
-            if os.path.isdir(quiz_path) and quiz_folder not in db_quiz_ids:
-                result_files = [f for f in os.listdir(quiz_path) if f.endswith('.json')]
-                if result_files:
-                    summary.append({
-                        'quiz_id': quiz_folder,
-                        'submission_count': len(result_files)
-                    })
-    
-    return summary
-
-def get_quiz_submissions(quiz_id: str) -> list[dict[str, Any]]:
-    """Get all submissions for a specific quiz from database"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT id, first_name, last_name, batch, score, max_score, timestamp
-        FROM quiz_results
-        WHERE quiz_id = ?
-        ORDER BY timestamp DESC
-    ''', (quiz_id,))
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    submissions = [{
-        'id': row['id'],
-        'filename': f"db_{row['id']}",
-        'first_name': row['first_name'],
-        'last_name': row['last_name'],
-        'batch': row['batch'],
-        'score': row['score'],
-        'max_score': row['max_score'],
-        'timestamp': row['timestamp']
-    } for row in rows]
-    
-    return submissions
-
-def load_student_result_from_db(result_id: int) -> ResultData | None:
-    """Load a specific student result from database"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT * FROM quiz_results WHERE id = ?
-    ''', (result_id,))
-    
-    row = cursor.fetchone()
-    conn.close()
-    
-    if not row:
-        return None
-    
-    return {
-        "student_info": {
-            "first_name": row['first_name'],
-            "last_name": row['last_name'],
-            "batch": row['batch']
-        },
-        "quiz_meta": {
-            "quiz_id": row['quiz_id'],
-            "quiz_file": row['quiz_file'],
-            "timestamp": row['timestamp'],
-            "total_score": row['score'],
-            "max_score": row['max_score']
-        },
-        "attempt_details": json.loads(row['attempt_details'])
-    }
-
-def load_student_result(quiz_id: str, filename: str) -> ResultData | None:
-    """Load a specific student result file (supports both DB and JSON)"""
-    # Check if it's a database ID
-    if filename.startswith('db_'):
-        try:
-            result_id = int(filename[3:])
-            return load_student_result_from_db(result_id)
-        except ValueError:
-            pass
-    
-    # Fall back to JSON file
-    file_path = os.path.join(RESULTS_DIR, quiz_id, filename)
-    if os.path.exists(file_path):
-        with open(file_path, 'r', encoding='utf8') as f:
-            return json.load(f)
-    return None
 
 # ============ STUDENT ROUTES ============
 
 @app.route('/')
 def index() -> str:
     """Home page - List all available quizzes"""
-    question_files = [f.replace('.json', '') for f in os.listdir(QUESTIONS_FOLDER) if f.endswith('.json')]
-    return render_template('index.html', question_files=question_files)
+    quizzes = db.get_active_quizzes()
+    return render_template('index.html', quizzes=quizzes)
+
 
 @app.route('/student-details')
 def student_details() -> str | Response:
     """Page to collect student information before quiz"""
-    quiz_file = request.args.get('quiz', '')
-    if not quiz_file:
+    quiz_id = request.args.get('quiz', '')
+    if not quiz_id:
         flash('Please select a quiz first.', 'warning')
         return redirect(url_for('index'))
-    return render_template('student_details.html', quiz_file=quiz_file)
+    
+    quiz_info = db.get_quiz_info(quiz_id)
+    if not quiz_info:
+        flash('Quiz not found.', 'danger')
+        return redirect(url_for('index'))
+    
+    # Pass existing student data if available
+    student_data = session.get('student_data')
+    return render_template('student_details.html', 
+                          quiz_id=quiz_id, 
+                          quiz_name=quiz_info['title'],
+                          student_data=student_data)
+
 
 @app.route('/set-student-details', methods=['POST'])
 def set_student_details() -> Response:
-    """Save student details to session and start quiz"""
+    """Save student details and start quiz"""
     first_name = request.form.get('first_name', '').strip()
     last_name = request.form.get('last_name', '').strip()
     batch = request.form.get('batch', '').strip()
-    quiz_file = request.form.get('quiz_file', '').strip()
+    quiz_id = request.form.get('quiz_id', '').strip()
     
-    if not all([first_name, last_name, batch, quiz_file]):
+    if not all([first_name, last_name, batch, quiz_id]):
         flash('All fields are required.', 'danger')
-        return redirect(url_for('student_details', quiz=quiz_file))
+        return redirect(url_for('student_details', quiz=quiz_id))
     
-    # Store student data in session
+    quiz_info = db.get_quiz_info(quiz_id)
+    if not quiz_info or not quiz_info['is_active']:
+        flash('Quiz not available.', 'danger')
+        return redirect(url_for('index'))
+    
     session['student_data'] = {
         'first_name': first_name,
         'last_name': last_name,
         'batch': batch
     }
-    session.modified = True
+    session['current_quiz_id'] = quiz_id
+    session['current_quiz_title'] = quiz_info['title']
     
-    # Load quiz questions
-    global quiz_title
-    quiz_title = quiz_file
-    session['current_quiz_file'] = quiz_file + '.json'
-    session['current_quiz_id'] = quiz_file.replace(' ', '_').lower()
-    
-    file_path = os.path.join(QUESTIONS_FOLDER, quiz_file + '.json')
-    
-    if not os.path.exists(file_path):
-        flash('Quiz file not found.', 'danger')
-        return redirect(url_for('index'))
-    
-    with open(file_path, 'r', encoding='utf8') as f:
-        questions = json.load(f)
-    
+    questions = db.get_quiz_questions(quiz_id, shuffle=True)
     initialize_session(questions)
     
     return redirect(url_for('quiz'))
 
+
 @app.route('/clear-student')
 def clear_student() -> Response:
-    """Clear student session data"""
+    """Clear student session"""
     session.pop('student_data', None)
     flash('Session cleared.', 'info')
     return redirect(url_for('index'))
 
-@app.route('/load_questions', methods=['POST'])
-def load_questions() -> Response:
-    """Load questions for a quiz (AJAX endpoint)"""
-    selected_file = request.json['file_name'] + '.json'
-    global quiz_title
-    quiz_title = request.json['file_name']
+
+@app.route('/clear-student-redirect')
+def clear_student_and_redirect() -> Response:
+    """Clear student session and redirect back to student details"""
+    quiz_id = request.args.get('quiz', '')
+    session.pop('student_data', None)
+    session.pop('current_quiz_id', None)
+    session.pop('current_quiz_title', None)
+    if quiz_id:
+        return redirect(url_for('student_details', quiz=quiz_id))
+    return redirect(url_for('index'))
+
+
+@app.route('/start-quiz-session', methods=['POST'])
+def start_quiz_with_session() -> Response:
+    """Start quiz using existing session student data"""
+    quiz_id = request.form.get('quiz_id', '').strip()
     
-    # Check if student data exists
     if not session.get('student_data'):
-        return jsonify({'redirect': url_for('student_details', quiz=request.json['file_name'])})
+        flash('Please enter your details first.', 'warning')
+        return redirect(url_for('student_details', quiz=quiz_id))
     
-    session['current_quiz_file'] = selected_file
-    session['current_quiz_id'] = request.json['file_name'].replace(' ', '_').lower()
+    quiz_info = db.get_quiz_info(quiz_id)
+    if not quiz_info or not quiz_info['is_active']:
+        flash('Quiz not available.', 'danger')
+        return redirect(url_for('index'))
     
-    file_path = os.path.join(QUESTIONS_FOLDER, selected_file)
+    session['current_quiz_id'] = quiz_id
+    session['current_quiz_title'] = quiz_info['title']
     
-    with open(file_path, 'r', encoding='utf8') as f:
-        questions = json.load(f)
-    
+    questions = db.get_quiz_questions(quiz_id, shuffle=True)
     initialize_session(questions)
     
-    return jsonify('success')
+    return redirect(url_for('quiz'))
+
+
+@app.route('/load_questions', methods=['POST'])
+def load_questions() -> Response:
+    """Load questions for a quiz (AJAX) - always redirect to student details for confirmation"""
+    quiz_id = request.json.get('quiz_id', '')
+    
+    # Always redirect to student details page for identity confirmation
+    return jsonify({'redirect': url_for('student_details', quiz=quiz_id)})
+
 
 @app.route('/quiz', methods=['GET'])
 def quiz() -> str | Response:
-    """Quiz page - Display current question"""
+    """Quiz page"""
     if 'current_question' not in session:
         return redirect(url_for('index'))
     
@@ -502,120 +204,111 @@ def quiz() -> str | Response:
         return redirect(url_for('result'))
     
     current_question = session['questions'][session['current_question']]
-    random.shuffle(current_question['options'])
+    options = current_question['options'].copy()
+    random.shuffle(options)
     
-    # Check if student can view answers during quiz
-    show_answers_during_quiz = False
-    if session.get('student_data'):
-        student_batch = session['student_data'].get('batch', '')
-        quiz_file = session.get('current_quiz_file', '')
-        show_answers_during_quiz = check_answer_permission(quiz_file, student_batch)
+    quiz_id = session.get('current_quiz_id', '')
+    student_batch = session['student_data'].get('batch', '')
+    show_answers = db.check_answer_permission(quiz_id, student_batch)
     
     return render_template('quiz.html',
-                         quiz_title=quiz_title,
+                         quiz_title=session.get('current_quiz_title', ''),
                          question=current_question,
+                         options=options,
                          score=session['score'],
                          wrong_attempts=session['wrong_attempts'],
                          question_index=session['current_question'],
                          total_questions=len(session['questions']),
-                         show_answers=show_answers_during_quiz)
+                         show_answers=show_answers)
+
 
 @app.route('/check_answer', methods=['POST'])
 def check_answer() -> Response:
-    """Check if submitted answer is correct"""
-    selected_options = request.json.get('selected_options')
+    """Check answer"""
+    selected_options = request.json.get('selected_options', [])
     question_index = session['current_question']
     current_question = session['questions'][question_index]
     correct_answer = current_question['answer']
-
-    selected_options = [option.strip() for option in selected_options]
-    correct_answer = [option.strip() for option in correct_answer]
     
-    if set(selected_options) == set(correct_answer):
-        if question_index not in session['attempts']:
-            session['score'] += 1
-            session['user_answers'][question_index] = selected_options
-            session['attempts'][question_index] = True
-            session['is_correct'][question_index] = True
-            session.modified = True
-        return jsonify({'result': 'correct', 'score': session['score']})
-    else:
-        if question_index not in session['attempts']:
-            session['wrong_attempts'] += 1
-            session['attempts'][question_index] = True
-        session['is_correct'][question_index] = False
+    selected_options = [opt.strip() for opt in selected_options]
+    correct_answer = [opt.strip() for opt in correct_answer]
+    
+    is_correct = set(selected_options) == set(correct_answer)
+    
+    if question_index not in session['attempts']:
+        session['attempts'][question_index] = True
         session['user_answers'][question_index] = selected_options
+        session['is_correct'][question_index] = is_correct
+        
+        if is_correct:
+            session['score'] += 1
+        else:
+            session['wrong_attempts'] += 1
+        
         session.modified = True
-        return jsonify({'result': 'incorrect', 'score': session['score']})
+    
+    return jsonify({'result': 'correct' if is_correct else 'incorrect', 'score': session['score']})
+
 
 @app.route('/next', methods=['POST'])
 def next_question() -> Response:
-    """Move to next question"""
+    """Next question"""
     session['current_question'] += 1
     session.modified = True
     return jsonify({'status': 'next'})
 
+
 @app.route('/previous', methods=['POST'])
 def previous_question() -> Response:
-    """Move to previous question"""
+    """Previous question"""
     if session['current_question'] > 0:
         session['current_question'] -= 1
     session.modified = True
     return jsonify({'status': 'previous'})
 
+
 @app.route('/get_answer', methods=['GET'])
 def get_answer() -> Response:
-    """Get correct answer for current question"""
-    # Check permission before revealing answer
-    if session.get('student_data'):
-        student_batch = session['student_data'].get('batch', '')
-        quiz_file = session.get('current_quiz_file', '')
-        if not check_answer_permission(quiz_file, student_batch):
-            return jsonify(correct_answers=[], error='You do not have permission to view answers')
+    """Get correct answer"""
+    quiz_id = session.get('current_quiz_id', '')
+    student_batch = session.get('student_data', {}).get('batch', '')
+    
+    if not db.check_answer_permission(quiz_id, student_batch):
+        return jsonify(correct_answers=[], error='Permission denied')
     
     question_index = session['current_question']
     current_question = session['questions'][question_index]
-    correct_answer = current_question['answer']
-    return jsonify(correct_answers=correct_answer)
+    return jsonify(correct_answers=current_question['answer'])
+
 
 @app.route('/result')
 def result() -> str | Response:
-    """Show quiz results"""
+    """Show results"""
     if 'questions' not in session:
         return redirect(url_for('index'))
     
-    # Check permissions for showing answers
-    show_answers = True
+    quiz_id = session.get('current_quiz_id', '')
     is_teacher = session.get('is_teacher', False)
+    student_batch = session.get('student_data', {}).get('batch', '')
     
-    student_batch = ''
-    quiz_file = session.get('current_quiz_file', '')
+    show_answers = is_teacher or db.check_answer_permission(quiz_id, student_batch)
     
-    if session.get('student_data'):
-        student_batch = session['student_data'].get('batch', '')
-        
-        if not is_teacher:
-            show_answers = check_answer_permission(quiz_file, student_batch)
-        
-        # Save result to database (only for students, not teachers reviewing)
-        if not session.get('result_saved') and not is_teacher:
-            try:
-                save_student_result_to_db(
-                    student_data=session['student_data'],
-                    quiz_id=session.get('current_quiz_id', 'unknown'),
-                    quiz_file=quiz_file,
-                    score=session['score'],
-                    max_score=len(session['questions']),
-                    questions=session['questions'],
-                    user_answers=session['user_answers'],
-                    is_correct=session['is_correct']
-                )
-                session['result_saved'] = True
-                session.modified = True
-            except Exception as e:
-                print(f"Error saving result: {e}")
-                import traceback
-                traceback.print_exc()
+    # Save result
+    if not session.get('result_saved') and not is_teacher and session.get('student_data'):
+        try:
+            db.save_student_result(
+                student_data=session['student_data'],
+                quiz_id=quiz_id,
+                score=session['score'],
+                max_score=len(session['questions']),
+                questions=session['questions'],
+                user_answers=session['user_answers'],
+                is_correct=session['is_correct']
+            )
+            session['result_saved'] = True
+            session.modified = True
+        except Exception as e:
+            print(f"Error saving result: {e}")
     
     return render_template(
         'result.html',
@@ -628,16 +321,17 @@ def result() -> str | Response:
         student_data=session.get('student_data', {})
     )
 
+
 # ============ TEACHER ROUTES ============
 
 @app.route('/teacher/login', methods=['GET', 'POST'])
 def teacher_login() -> str | Response:
-    """Teacher login page"""
+    """Teacher login"""
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         
-        if verify_teacher_password(username, password):
+        if db.verify_teacher_password(username, password):
             session['is_teacher'] = True
             session['teacher_username'] = username
             flash('Login successful!', 'success')
@@ -647,113 +341,180 @@ def teacher_login() -> str | Response:
     
     return render_template('teacher_login.html')
 
+
 @app.route('/teacher/logout')
 def teacher_logout() -> Response:
     """Teacher logout"""
     session.pop('is_teacher', None)
     session.pop('teacher_username', None)
-    flash('Logged out successfully.', 'info')
+    flash('Logged out.', 'info')
     return redirect(url_for('index'))
+
 
 @app.route('/teacher/dashboard')
 def teacher_dashboard() -> str | Response:
-    """Teacher dashboard - shows quiz result summary"""
+    """Teacher dashboard"""
     if not session.get('is_teacher'):
-        flash('Please login as teacher.', 'warning')
+        flash('Please login.', 'warning')
         return redirect(url_for('teacher_login'))
     
-    summary = get_quiz_results_summary()
+    summary = db.get_quiz_results_summary()
     return render_template('teacher_dashboard.html', summary=summary)
+
 
 @app.route('/teacher/quiz/<quiz_id>')
 def teacher_quiz_results(quiz_id: str) -> str | Response:
-    """View all submissions for a specific quiz"""
+    """View quiz submissions"""
     if not session.get('is_teacher'):
-        flash('Please login as teacher.', 'warning')
+        flash('Please login.', 'warning')
         return redirect(url_for('teacher_login'))
     
-    submissions = get_quiz_submissions(quiz_id)
-    return render_template('teacher_quiz_results.html', quiz_id=quiz_id, submissions=submissions)
+    quiz_info = db.get_quiz_info(quiz_id)
+    submissions = db.get_quiz_submissions(quiz_id)
+    analytics = db.get_question_analytics(quiz_id)
+    permissions = db.get_quiz_permissions(quiz_id)
+    
+    return render_template('teacher_quiz_results.html', 
+                          quiz_id=quiz_id,
+                          quiz_name=quiz_info['title'] if quiz_info else quiz_id,
+                          is_active=quiz_info['is_active'] if quiz_info else True,
+                          submissions=submissions,
+                          analytics=analytics,
+                          permissions=permissions)
 
-@app.route('/teacher/result/<quiz_id>/<filename>')
-def teacher_view_result(quiz_id: str, filename: str) -> str | Response:
-    """View a specific student's result (teacher view)"""
+
+@app.route('/teacher/result/<int:result_id>')
+def teacher_view_result(result_id: int) -> str | Response:
+    """View student result"""
     if not session.get('is_teacher'):
-        flash('Please login as teacher.', 'warning')
+        flash('Please login.', 'warning')
         return redirect(url_for('teacher_login'))
     
-    result_data = load_student_result(quiz_id, filename)
-    
+    result_data = db.load_student_result(result_id)
     if not result_data:
         flash('Result not found.', 'danger')
-        return redirect(url_for('teacher_quiz_results', quiz_id=quiz_id))
+        return redirect(url_for('teacher_dashboard'))
     
     return render_template('teacher_view_result.html',
-                         result=result_data,
-                         quiz_id=quiz_id,
-                         filename=filename,
-                         show_answers=True)
+                          result=result_data,
+                          result_id=result_id,
+                          show_answers=True)
+
+
+@app.route('/teacher/quiz/<quiz_id>/permissions', methods=['POST'])
+def teacher_update_permissions(quiz_id: str) -> Response:
+    """Update quiz permissions"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    batches_str = request.form.get('batches', '').strip()
+    batches = [b.strip() for b in batches_str.split(',') if b.strip()]
+    db.set_quiz_permissions(quiz_id, batches)
+    
+    flash('Permissions updated.', 'success')
+    return redirect(url_for('teacher_quiz_results', quiz_id=quiz_id))
+
+
+@app.route('/teacher/quiz/<quiz_id>/toggle', methods=['POST'])
+def teacher_toggle_quiz(quiz_id: str) -> Response:
+    """Toggle quiz active status"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    new_status = db.toggle_quiz_active(quiz_id)
+    
+    if new_status is not None:
+        status_text = 'activated' if new_status else 'archived'
+        flash(f'Quiz "{quiz_id}" has been {status_text}.', 'success')
+    else:
+        flash('Quiz not found.', 'danger')
+    
+    return redirect(url_for('teacher_quiz_results', quiz_id=quiz_id))
+
+
+@app.route('/teacher/quiz/<quiz_id>/delete', methods=['POST'])
+def teacher_delete_quiz(quiz_id: str) -> Response:
+    """Delete quiz"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    delete_results = request.form.get('delete_results') == 'true'
+    
+    if db.delete_quiz(quiz_id, delete_results):
+        if delete_results:
+            flash(f'Quiz "{quiz_id}" and all results deleted.', 'success')
+        else:
+            flash(f'Quiz "{quiz_id}" archived (results kept).', 'success')
+    else:
+        flash('Quiz not found.', 'danger')
+    
+    return redirect(url_for('teacher_dashboard'))
+
+
+@app.route('/teacher/delete-result/<int:result_id>', methods=['POST'])
+def teacher_delete_result(result_id: int) -> Response:
+    """Delete result"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    quiz_id = db.delete_result(result_id)
+    flash('Result deleted.', 'success')
+    
+    if quiz_id:
+        return redirect(url_for('teacher_quiz_results', quiz_id=quiz_id))
+    return redirect(url_for('teacher_dashboard'))
+
+
+@app.route('/teacher/sync', methods=['GET', 'POST'])
+def teacher_sync_quizzes() -> Response:
+    """Manually sync quizzes from folder"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    results = db.sync_quizzes_from_folder()
+    
+    messages = []
+    if results['imported']:
+        messages.append(f"Imported: {', '.join(results['imported'])}")
+    if results['updated']:
+        messages.append(f"Updated: {', '.join(results['updated'])}")
+    if results['deactivated']:
+        messages.append(f"Deactivated: {', '.join(results['deactivated'])}")
+    
+    if messages:
+        flash(' | '.join(messages), 'success')
+    else:
+        flash('All quizzes are up to date.', 'info')
+    
+    return redirect(url_for('teacher_dashboard'))
+
 
 @app.route('/teacher/settings', methods=['GET', 'POST'])
 def teacher_settings() -> str | Response:
-    """Teacher settings page - manage permissions"""
+    """Teacher settings"""
     if not session.get('is_teacher'):
-        flash('Please login as teacher.', 'warning')
+        flash('Please login.', 'warning')
         return redirect(url_for('teacher_login'))
     
     if request.method == 'POST':
-        permissions: dict[str, list[str]] = {}
-        quiz_files = [f for f in os.listdir(QUESTIONS_FOLDER) if f.endswith('.json')]
+        # Save permissions for each quiz
+        quizzes = db.get_quiz_results_summary()
+        for quiz in quizzes:
+            batches_str = request.form.get(f'batches_{quiz["quiz_id"]}', '').strip()
+            batches = [b.strip() for b in batches_str.split(',') if b.strip()]
+            db.set_quiz_permissions(quiz['quiz_id'], batches)
         
-        for quiz_file in quiz_files:
-            batches_str = request.form.get(f'batches_{quiz_file}', '').strip()
-            if batches_str:
-                batches = [b.strip() for b in batches_str.split(',') if b.strip()]
-            else:
-                batches = []
-            permissions[quiz_file] = batches
-        
-        save_permissions(permissions)
-        flash('Permissions updated successfully!', 'success')
+        flash('Permissions saved successfully.', 'success')
+        return redirect(url_for('teacher_settings'))
     
-    # Load current permissions and quiz files
-    permissions = load_permissions()
-    quiz_files = [f for f in os.listdir(QUESTIONS_FOLDER) if f.endswith('.json')]
-    
-    return render_template('teacher_settings.html',
-                         permissions=permissions,
-                         quiz_files=quiz_files)
+    quizzes = db.get_quiz_results_summary()
+    return render_template('teacher_settings.html', quizzes=quizzes)
 
-@app.route('/teacher/delete-result/<quiz_id>/<filename>', methods=['POST'])
-def teacher_delete_result(quiz_id: str, filename: str) -> Response:
-    """Delete a specific student result"""
-    if not session.get('is_teacher'):
-        flash('Please login as teacher.', 'warning')
-        return redirect(url_for('teacher_login'))
-    
-    # Check if it's a database ID
-    if filename.startswith('db_'):
-        try:
-            result_id = int(filename[3:])
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM quiz_results WHERE id = ?', (result_id,))
-            conn.commit()
-            conn.close()
-            flash('Result deleted successfully.', 'success')
-        except (ValueError, sqlite3.Error) as e:
-            flash(f'Error deleting result: {e}', 'danger')
-    else:
-        # Delete JSON file
-        file_path = os.path.join(RESULTS_DIR, quiz_id, filename)
-        
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            flash('Result deleted successfully.', 'success')
-        else:
-            flash('Result not found.', 'danger')
-    
-    return redirect(url_for('teacher_quiz_results', quiz_id=quiz_id))
 
 if __name__ == '__main__':
     app.run(debug=True)
