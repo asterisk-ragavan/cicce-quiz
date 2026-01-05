@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Quiz App{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-icons.css') }}">
+    <script src="{{ url_for('static', filename='js/jquery-3.5.1.min.js') }}"></script>
+    <link rel="icon" href="{{ url_for('static', filename='images/logo.png') }}" type="image/x-icon">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Modern Navbar -->
+    <header class="navbar-modern fade-in">
+        <nav class="navbar-container">
+            <!-- Brand Section with Logo and Scrolling Title -->
+            <div class="navbar-brand-modern">
+                <img src="{{ url_for('static', filename='images/logo.png') }}"
+                     alt="CICCE Logo"
+                     class="navbar-logo"
+                     style="width: 80px; height: auto; max-height: 40px;"
+                     onerror="this.style.display='none'">
+                <div class="title-marquee">
+                    <marquee behavior="scroll" direction="left" scrollamount="4">
+                        <span>Chandra Institute of Commerce and Computer Education</span>
+                    </marquee>
+                </div>
+            </div>
+            
+            <!-- Desktop Navigation -->
+            <div class="navbar-nav-modern desktop-nav">
+                <a class="nav-link-modern" href="{{ url_for('index') }}">
+                    <i class="bi bi-house"></i> Home
+                </a>
+                {% if session.get('is_teacher') %}
+                <a class="nav-link-modern" href="{{ url_for('teacher_dashboard') }}">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a class="nav-link-modern" href="{{ url_for('teacher_settings') }}">
+                    <i class="bi bi-gear"></i> Settings
+                </a>
+                <span class="user-badge">
+                    <i class="bi bi-person-badge"></i> {{ session.get('teacher_username', 'Teacher') }}
+                </span>
+                <a class="nav-link-modern" href="{{ url_for('teacher_logout') }}">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </a>
+                {% elif session.get('student_data') %}
+                <span class="user-badge">
+                    <i class="bi bi-person"></i> {{ session.get('student_data', {}).get('first_name', '') }} ({{ session.get('student_data', {}).get('batch', '') }})
+                </span>
+                <a class="nav-link-modern" href="{{ url_for('clear_student') }}">
+                    <i class="bi bi-box-arrow-right"></i> Clear
+                </a>
+                {% else %}
+                <a class="nav-link-modern" href="{{ url_for('teacher_login') }}">
+                    <i class="bi bi-person-lock"></i> Teacher Login
+                </a>
+                {% endif %}
+            </div>
+            
+            <!-- Mobile Menu Button -->
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                <i class="bi bi-list"></i>
+            </button>
+        </nav>
+        
+        <!-- Mobile Navigation Dropdown -->
+        <div class="mobile-nav-dropdown" id="mobileNav">
+            <a class="nav-link-modern" href="{{ url_for('index') }}">
+                <i class="bi bi-house"></i> Home
+            </a>
+            {% if session.get('is_teacher') %}
+            <a class="nav-link-modern" href="{{ url_for('teacher_dashboard') }}">
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            <a class="nav-link-modern" href="{{ url_for('teacher_settings') }}">
+                <i class="bi bi-gear"></i> Settings
+            </a>
+            <a class="nav-link-modern" href="{{ url_for('teacher_logout') }}">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </a>
+            {% elif session.get('student_data') %}
+            <a class="nav-link-modern" href="{{ url_for('clear_student') }}">
+                <i class="bi bi-box-arrow-right"></i> Clear Session
+            </a>
+            {% else %}
+            <a class="nav-link-modern" href="{{ url_for('teacher_login') }}">
+                <i class="bi bi-person-lock"></i> Teacher Login
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="main-content" style="padding-bottom: 0;">
+            {% for category, message in messages %}
+            <div class="alert-modern alert-{{ category }}-modern">
+                <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' %}x-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="main-content fade-up">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Wave Divider -->
+    <div class="wave-container">
+        <svg class="wave" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 60" preserveAspectRatio="none">
+            <path class="wave-path" style="fill: rgba(255,255,255,0.5);" d="M0,30 Q150,0 300,30 T600,30 T900,30 T1200,30 T1500,30 V60 H0 Z"></path>
+        </svg>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="{{ url_for('static', filename='js/popper.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+    
+    <!-- Mobile Menu Toggle Script -->
+    <script>
+        function toggleMobileMenu() {
+            const mobileNav = document.getElementById('mobileNav');
+            mobileNav.classList.toggle('show');
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

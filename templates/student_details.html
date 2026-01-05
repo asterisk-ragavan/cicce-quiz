@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Student Details - Quiz App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
+    <div style="max-width: 500px; width: 100%;">
+        <div class="card-modern fade-up">
+            <div class="card-header-modern">
+                <span><i class="bi bi-person-fill"></i> Enter Your Details</span>
+            </div>
+            <div class="card-body-modern">
+                <p class="text-muted mb-4">
+                    Please provide your information before starting the quiz: 
+                    <span class="badge-modern badge-info">{{ quiz_file }}</span>
+                </p>
+                
+                <form action="{{ url_for('set_student_details') }}" method="POST">
+                    <input type="hidden" name="quiz_file" value="{{ quiz_file }}">
+                    
+                    <div class="mb-4">
+                        <label for="first_name" class="form-label-modern">
+                            First Name <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control-modern" id="first_name" name="first_name" 
+                               placeholder="Enter your first name" required>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="last_name" class="form-label-modern">
+                            Last Name <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control-modern" id="last_name" name="last_name" 
+                               placeholder="Enter your last name" required>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="batch" class="form-label-modern">
+                            Batch <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control-modern" id="batch" name="batch" 
+                               placeholder="e.g., Batch-A, 2024-A, Morning-Batch" required>
+                        <small class="text-muted" style="display: block; margin-top: 0.5rem;">
+                            Enter your batch name or identifier
+                        </small>
+                    </div>
+                    
+                    <div class="d-flex flex-wrap gap-3" style="margin-top: 1.5rem;">
+                        <button type="submit" class="btn-modern btn-primary-modern" style="flex: 1;">
+                            <i class="bi bi-play-fill"></i> Start Quiz
+                        </button>
+                        <a href="{{ url_for('index') }}" class="btn-modern btn-outline-modern" style="flex: 1;">
+                            <i class="bi bi-arrow-left"></i> Back to Home
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Info Card -->
+        <div class="card-modern mt-4 fade-up delay-2" style="background: rgba(20, 184, 166, 0.1);">
+            <div class="card-body-modern text-center">
+                <i class="bi bi-info-circle text-info" style="font-size: 1.5rem;"></i>
+                <p class="mb-0 mt-2" style="font-size: 0.9rem; color: #115e59;">
+                    Your details will be saved with your quiz results for tracking progress.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

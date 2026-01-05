@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz Results - Quiz App{% endblock %}
+
+{% block extra_css %}
+<style>
+    .result-question-card {
+        margin-bottom: 1rem;
+        border-left: 4px solid #d1d5db;
+        border-radius: 0.75rem;
+        background: var(--card-bg);
+        backdrop-filter: var(--glass-blur);
+        padding: 1.25rem;
+        transition: var(--transition-normal);
+    }
+    .result-question-card:hover {
+        box-shadow: var(--shadow-md);
+    }
+    .result-correct-card {
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05));
+        border-left-color: var(--success-color);
+    }
+    .result-wrong-card {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05));
+        border-left-color: var(--danger-color);
+    }
+    .result-option {
+        padding: 0.5rem 0.875rem;
+        margin: 0.35rem 0;
+        border-radius: 0.5rem;
+        transition: var(--transition-fast);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .result-correct-option {
+        background: var(--success-color);
+        color: white;
+    }
+    .result-wrong-option {
+        background: var(--danger-color);
+        color: white;
+        opacity: 0.8;
+    }
+    .result-selected-option {
+        border: 2px solid var(--primary-color);
+        font-weight: 600;
+    }
+    .hidden-answer .result-option {
+        background-color: rgba(248, 249, 250, 0.8) !important;
+        color: #333 !important;
+    }
+    .stat-card {
+        text-align: center;
+        padding: 1.5rem 1rem;
+    }
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+    .filter-btn {
+        transition: all 0.3s ease;
+    }
+    .filter-btn.active {
+        transform: scale(1.05);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Student Info (if available) -->
+{% if student_data %}
+<div class="alert-modern alert-info-modern mb-4 fade-in">
+    <i class="bi bi-person-circle" style="font-size: 1.25rem;"></i>
+    <div>
+        <strong>{{ student_data.first_name }} {{ student_data.last_name }}</strong>
+        <span class="badge-modern badge-secondary" style="margin-left: 0.5rem;">{{ student_data.batch }}</span>
+    </div>
+</div>
+{% endif %}
+
+<!-- Score Summary Card -->
+<div class="card-modern mb-4 fade-up">
+    <div class="card-header-modern text-center" style="padding: 1.5rem;">
+        <h4 style="margin: 0;"><i class="bi bi-trophy"></i> Quiz Results</h4>
+    </div>
+    <div class="card-body-modern">
+        <div class="grid-container grid-cols-4" style="gap: 0;">
+            <div class="stat-card" style="border-right: 1px solid rgba(0,0,0,0.1);">
+                <div class="stat-number text-primary">{{ total_questions }}</div>
+                <small class="text-muted">Total Questions</small>
+            </div>
+            <div class="stat-card" style="border-right: 1px solid rgba(0,0,0,0.1);">
+                <div class="stat-number text-success">{{ score }}</div>
+                <small class="text-muted">Correct Answers</small>
+            </div>
+            <div class="stat-card" style="border-right: 1px solid rgba(0,0,0,0.1);">
+                <div class="stat-number text-danger">{{ wrong_attempts }}</div>
+                <small class="text-muted">Wrong Attempts</small>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number {% if score == total_questions %}text-success{% elif score >= total_questions * 0.5 %}text-warning{% else %}text-danger{% endif %}">
+                    {{ score }}/{{ total_questions }}
+                </div>
+                <small class="text-muted">Final Score</small>
+            </div>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div style="margin-top: 1.5rem; padding: 0 1.5rem 1rem;">
+            {% set percent = (score / total_questions * 100) | round(1) %}
+            <div class="progress-modern" style="height: 2rem; position: relative;">
+                <div class="progress-bar-modern {% if percent >= 80 %}progress-bar-success{% elif percent >= 50 %}progress-bar-warning{% else %}progress-bar-danger{% endif %}" 
+                     style="width: {{ percent }}%"></div>
+                <span class="progress-text-centered">{{ percent }}%</span>
+            </div>
+        </div>
+        
+        <!-- Performance Message -->
+        <div class="text-center" style="padding: 1rem;">
+            {% if percent >= 80 %}
+            <div class="admission-badge" style="background: linear-gradient(45deg, var(--success-color), #10b981);">
+                <i class="bi bi-star-fill"></i> Excellent Performance!
+            </div>
+            {% elif percent >= 50 %}
+            <div class="admission-badge" style="background: linear-gradient(45deg, var(--warning-color), #d97706);">
+                <i class="bi bi-hand-thumbs-up"></i> Good Job! Keep Learning!
+            </div>
+            {% else %}
+            <div class="admission-badge" style="background: linear-gradient(45deg, var(--info-color), #0d9488);">
+                <i class="bi bi-book"></i> Keep Practicing!
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if show_answers %}
+<!-- Action Buttons -->
+<div class="d-flex justify-content-center mb-4 flex-wrap gap-3 fade-up">
+    <button id="btn-view-all" class="btn-modern btn-primary-modern filter-btn active">
+        <i class="bi bi-list"></i> View All
+    </button>
+    <button id="btn-correct" class="btn-modern btn-success-modern filter-btn">
+        <i class="bi bi-check-circle"></i> Correct
+    </button>
+    <button id="btn-wrong" class="btn-modern btn-danger-modern filter-btn">
+        <i class="bi bi-x-circle"></i> Wrong
+    </button>
+    <a href="{{ url_for('index') }}" class="btn-modern btn-secondary-modern">
+        <i class="bi bi-arrow-repeat"></i> Take Another Quiz
+    </a>
+</div>
+
+<!-- Question List -->
+<div id="question-list" class="fade-up">
+    <!-- Questions will be loaded here dynamically -->
+</div>
+{% else %}
+<!-- Answer hidden message -->
+<div class="card-modern text-center fade-up" style="background: rgba(20, 184, 166, 0.1);">
+    <div class="card-body-modern" style="padding: 2rem;">
+        <i class="bi bi-lock-fill" style="font-size: 3rem; color: var(--info-color);"></i>
+        <h5 style="color: var(--primary-dark); margin: 1rem 0;">Detailed Answers Not Available</h5>
+        <p class="text-muted">Contact your teacher if you need access to view correct answers.</p>
+        <a href="{{ url_for('index') }}" class="btn-modern btn-primary-modern" style="margin-top: 1rem;">
+            <i class="bi bi-arrow-repeat"></i> Take Another Quiz
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if show_answers %}
+<script>
+    // Function to dynamically create question cards
+    const questions = {{ session['questions']|tojson }};
+    const userAnswers = {{ user_answers|tojson }};
+    const isCorrectData = {{ is_correct|tojson }};
+    
+    function loadQuestions(filter = 'all') {
+        const questionList = document.getElementById('question-list');
+        questionList.innerHTML = '';  // Clear existing questions
+        
+        questions.forEach((question, index) => {
+            const isCorrect = isCorrectData[index] || isCorrectData[String(index)];
+            const userSelectedOptions = userAnswers[index] || userAnswers[String(index)] || [];
+            
+            // Filter conditions
+            if ((filter === 'correct' && !isCorrect) || (filter === 'wrong' && isCorrect)) {
+                return;
+            }
+
+            // Create card for each question
+            const card = document.createElement('div');
+            card.className = `result-question-card ${isCorrect ? 'result-correct-card' : 'result-wrong-card'}`;
+            
+            // Question content
+            card.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h5 style="font-weight: 600; color: var(--primary-dark); flex: 1; margin: 0; line-height: 1.4;">
+                        ${index + 1}. ${question.question}
+                    </h5>
+                    ${isCorrect ? 
+                        '<span class="badge-modern badge-success"><i class="bi bi-check"></i> Correct</span>' : 
+                        '<span class="badge-modern badge-danger"><i class="bi bi-x"></i> Incorrect</span>'}
+                </div>
+                <div style="margin-top: 1rem;">
+                    ${question.options.map(option => `
+                        <div class="result-option ${userSelectedOptions.includes(option) ? 'result-selected-option' : ''} ${question.answer.includes(option) ? 'result-correct-option' : ''} ${userSelectedOptions.includes(option) && !question.answer.includes(option) ? 'result-wrong-option' : ''}">
+                            ${userSelectedOptions.includes(option) ? '<i class="bi bi-check-square-fill"></i>' : '<i class="bi bi-square"></i>'}
+                            <span style="flex: 1;">${option}</span>
+                            ${question.answer.includes(option) ? '<span class="badge-modern badge-success" style="font-size: 0.7rem;">✓ Correct</span>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            questionList.appendChild(card);
+        });
+    }
+
+    // Button event listeners to load different sets of questions
+    document.getElementById('btn-view-all').addEventListener('click', function() {
+        loadQuestions('all');
+        setActiveButton(this);
+    });
+    document.getElementById('btn-correct').addEventListener('click', function() {
+        loadQuestions('correct');
+        setActiveButton(this);
+    });
+    document.getElementById('btn-wrong').addEventListener('click', function() {
+        loadQuestions('wrong');
+        setActiveButton(this);
+    });
+
+    function setActiveButton(btn) {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    // Initial load of all questions
+    loadQuestions();
+</script>
+{% endif %}
+{% endblock %}

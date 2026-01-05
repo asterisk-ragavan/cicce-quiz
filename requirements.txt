@@ -1,0 +1,17 @@
+# Requirements for Quiz Application
+# Compatible with Python 3.8 (required for Windows 7 support)
+# 
+# IMPORTANT: Windows 7 requires Python 3.8.x (last version with Win7 support)
+# Download Python 3.8.19 from: https://www.python.org/downloads/release/python-3819/
+
+Flask==2.0.3
+Flask-Session==0.4.0
+Werkzeug==2.0.3
+Jinja2==3.0.3
+MarkupSafe==2.0.1
+itsdangerous==2.0.1
+click==8.0.4
+cachelib==0.6.0
+
+# PyInstaller for building executable (Windows 7 compatible)
+pyinstaller==5.13.2

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Teacher Login - Quiz App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center" style="min-height: 60vh;">
+    <div style="max-width: 450px; width: 100%;">
+        <div class="card-modern fade-up">
+            <div class="card-header-modern" style="background: linear-gradient(135deg, #1f2937, #111827);">
+                <span><i class="bi bi-person-lock"></i> Teacher Login</span>
+            </div>
+            <div class="card-body-modern">
+                <form action="{{ url_for('teacher_login') }}" method="POST">
+                    <div class="mb-4">
+                        <label for="username" class="form-label-modern">
+                            <i class="bi bi-person"></i> Username
+                        </label>
+                        <input type="text" class="form-control-modern" id="username" name="username" 
+                               placeholder="Enter username" required>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="password" class="form-label-modern">
+                            <i class="bi bi-key"></i> Password
+                        </label>
+                        <input type="password" class="form-control-modern" id="password" name="password" 
+                               placeholder="Enter password" required>
+                    </div>
+                    
+                    <div class="d-flex flex-wrap gap-3" style="margin-top: 1.5rem;">
+                        <button type="submit" class="btn-modern w-100" style="background: linear-gradient(135deg, #1f2937, #111827); color: white;">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </button>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <a href="{{ url_for('index') }}" class="btn-modern btn-outline-modern w-100">
+                            <i class="bi bi-arrow-left"></i> Back to Home
+                        </a>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer-modern text-center">
+                <small class="text-muted">
+                    <i class="bi bi-shield-lock"></i> Contact administrator if you forgot your credentials
+                </small>
+            </div>
+        </div>
+        
+        <!-- Security Info -->
+        <div class="card-modern mt-4 fade-up delay-2" style="background: rgba(124, 58, 237, 0.1);">
+            <div class="card-body-modern">
+                <div class="d-flex align-items-center gap-3">
+                    <i class="bi bi-shield-check text-primary" style="font-size: 2rem;"></i>
+                    <div>
+                        <h6 style="color: var(--primary-dark); margin-bottom: 0.25rem;">Secure Access</h6>
+                        <small class="text-muted">Teacher portal for managing quiz results and settings</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

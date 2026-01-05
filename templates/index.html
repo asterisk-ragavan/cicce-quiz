@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Select Quiz - Quiz App{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section fade-in">
+    <i class="bi bi-mortarboard-fill text-primary" style="font-size: 4rem;"></i>
+    <h1 class="hero-title">Welcome to Quiz App</h1>
+    <p class="hero-subtitle">Choose a quiz below and test your knowledge!</p>
+    <div class="admission-badge">
+        Ready to Learn!
+    </div>
+</div>
+
+<!-- Section Header -->
+<div class="section-header fade-up">
+    <h2 class="section-title"><i class="bi bi-journal-check"></i> Available Quizzes</h2>
+    <p class="section-subtitle">Select one of the available quizzes to test your knowledge</p>
+</div>
+
+<!-- Quiz Cards Grid -->
+<div class="grid-container grid-cols-3" style="margin-top: 2rem;">
+    {% for file in question_files %}
+        <div class="card-modern fade-up delay-{{ loop.index }}">
+            <div class="card-body-modern text-center">
+                <i class="bi bi-file-earmark-text card-icon text-primary"></i>
+                <h5 style="font-weight: 600; color: var(--primary-dark); margin-bottom: 0.5rem;">{{ file }}</h5>
+                <p class="text-muted" style="font-size: 0.9rem;">This quiz contains questions on various topics.</p>
+            </div>
+            <div class="card-footer-modern">
+                <button class="btn-modern btn-primary-modern w-100 loadQuestionsButton" data-file="{{ file }}">
+                    <i class="bi bi-play-fill"></i> Start Quiz
+                </button>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+{% if not question_files %}
+<div class="alert-modern alert-warning-modern text-center" style="margin-top: 2rem;">
+    <i class="bi bi-exclamation-triangle"></i> No quizzes available. Please add quiz JSON files to the questions folder.
+</div>
+{% endif %}
+
+<!-- Why Take Quiz Section -->
+<div style="margin-top: 3rem; padding: 2rem; background: rgba(255,255,255,0.5); border-radius: 1rem;">
+    <h3 class="text-center" style="color: var(--primary-dark); margin-bottom: 1.5rem;">
+        <i class="bi bi-lightbulb text-warning"></i> Why Take Quizzes?
+    </h3>
+    <div class="grid-container grid-cols-3">
+        <div class="text-center p-3">
+            <i class="bi bi-graph-up-arrow text-success" style="font-size: 2.5rem;"></i>
+            <h5 style="margin-top: 0.75rem; color: var(--primary-dark);">Track Progress</h5>
+            <p class="text-muted" style="font-size: 0.9rem;">Monitor your learning journey</p>
+        </div>
+        <div class="text-center p-3">
+            <i class="bi bi-lightbulb-fill text-info" style="font-size: 2.5rem;"></i>
+            <h5 style="margin-top: 0.75rem; color: var(--primary-dark);">Boost Memory</h5>
+            <p class="text-muted" style="font-size: 0.9rem;">Reinforce what you've learned</p>
+        </div>
+        <div class="text-center p-3">
+            <i class="bi bi-trophy text-warning" style="font-size: 2.5rem;"></i>
+            <h5 style="margin-top: 0.75rem; color: var(--primary-dark);">Achieve Goals</h5>
+            <p class="text-muted" style="font-size: 0.9rem;">Build confidence in your skills</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Event handler to load questions when a button is clicked
+    $('.loadQuestionsButton').click(function() {
+        var selectedFile = $(this).data('file');
+
+        // Make an AJAX call to load the selected file
+        $.ajax({
+            url: '/load_questions',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ file_name: selectedFile }),
+            success: function(data) {
+                // Check if redirect is needed (student details not set)
+                if (data && data.redirect) {
+                    window.location.href = data.redirect;
+                } else {
+                    window.location.href = "{{ url_for('quiz') }}";
+                }
+            },
+            error: function() {
+                alert("Error loading questions.");
+            }
+        });
+    });
+</script>
+{% endblock %}

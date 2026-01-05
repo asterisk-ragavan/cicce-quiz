@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}View Result: {{ result.student_info.first_name }} {{ result.student_info.last_name }} - Quiz App{% endblock %}
+
+{% block extra_css %}
+<style>
+    .view-question-card {
+        margin-bottom: 1rem;
+        border-left: 4px solid #d1d5db;
+        border-radius: 0.75rem;
+        background: var(--card-bg);
+        backdrop-filter: var(--glass-blur);
+        padding: 1.25rem;
+        transition: var(--transition-normal);
+    }
+    .view-question-card:hover {
+        box-shadow: var(--shadow-md);
+    }
+    .view-question-card.correct {
+        border-left-color: var(--success-color);
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05));
+    }
+    .view-question-card.incorrect {
+        border-left-color: var(--danger-color);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05));
+    }
+    .view-option-item {
+        padding: 0.5rem 0.875rem;
+        margin: 0.35rem 0;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: var(--transition-fast);
+    }
+    .view-option-correct {
+        background: var(--success-color);
+        color: white;
+    }
+    .view-option-selected {
+        border: 2px solid var(--primary-color);
+        font-weight: 600;
+    }
+    .view-option-wrong-selected {
+        background: var(--danger-color);
+        color: white;
+    }
+    .filter-btn-group {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .filter-btn-item {
+        transition: all 0.3s ease;
+    }
+    .filter-btn-item.active {
+        transform: scale(1.05);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="mb-4 fade-in">
+    <nav style="background: var(--card-bg); backdrop-filter: var(--glass-blur); padding: 0.75rem 1rem; border-radius: 0.75rem;">
+        <a href="{{ url_for('teacher_dashboard') }}" class="text-primary" style="text-decoration: none;">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <span class="text-muted"> / </span>
+        <a href="{{ url_for('teacher_quiz_results', quiz_id=quiz_id) }}" class="text-primary" style="text-decoration: none;">
+            {{ quiz_id.replace('_', ' ') }}
+        </a>
+        <span class="text-muted"> / </span>
+        <span class="text-muted">{{ result.student_info.first_name }} {{ result.student_info.last_name }}</span>
+    </nav>
+</div>
+
+<!-- Student Info Card -->
+<div class="card-modern mb-4 fade-up">
+    <div class="card-header-modern">
+        <span><i class="bi bi-person-badge"></i> Student Information</span>
+    </div>
+    <div class="card-body-modern">
+        <div class="grid-container grid-cols-2">
+            <div>
+                <p style="margin-bottom: 0.75rem;">
+                    <strong>Name:</strong> {{ result.student_info.first_name }} {{ result.student_info.last_name }}
+                </p>
+                <p style="margin-bottom: 0;">
+                    <strong>Batch:</strong> <span class="badge-modern badge-secondary">{{ result.student_info.batch }}</span>
+                </p>
+            </div>
+            <div>
+                <p style="margin-bottom: 0.75rem;">
+                    <strong>Quiz:</strong> {{ result.quiz_meta.quiz_id.replace('_', ' ') | title }}
+                </p>
+                <p style="margin-bottom: 0;">
+                    <strong>Submitted:</strong> <span class="text-muted">{{ result.quiz_meta.timestamp }}</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Score Summary -->
+<div class="card-modern mb-4 fade-up">
+    <div class="card-body-modern text-center">
+        <h3 style="margin-bottom: 0.5rem;">Score: 
+            <span class="{% if result.quiz_meta.total_score == result.quiz_meta.max_score %}text-success{% elif result.quiz_meta.total_score >= result.quiz_meta.max_score * 0.5 %}text-warning{% else %}text-danger{% endif %}" style="font-weight: 700;">
+                {{ result.quiz_meta.total_score }}/{{ result.quiz_meta.max_score }}
+            </span>
+        </h3>
+        <p class="text-muted" style="margin-bottom: 1rem;">
+            {{ ((result.quiz_meta.total_score / result.quiz_meta.max_score) * 100) | round(1) }}% Correct
+        </p>
+        <div class="progress-modern" style="height: 2rem; position: relative;">
+            {% set percent = (result.quiz_meta.total_score / result.quiz_meta.max_score * 100) | round(1) %}
+            <div class="progress-bar-modern {% if percent >= 80 %}progress-bar-success{% elif percent >= 50 %}progress-bar-warning{% else %}progress-bar-danger{% endif %}" 
+                 style="width: {{ percent }}%"></div>
+            <span class="progress-text-centered">{{ percent }}%</span>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Buttons -->
+<div class="filter-btn-group mb-4 fade-up">
+    <button type="button" class="btn-modern btn-primary-modern filter-btn-item active" onclick="filterQuestions('all', this)">
+        <i class="bi bi-list"></i> All ({{ result.attempt_details|length }})
+    </button>
+    <button type="button" class="btn-modern btn-success-modern filter-btn-item" onclick="filterQuestions('correct', this)">
+        <i class="bi bi-check-circle"></i> Correct ({{ result.attempt_details|selectattr('is_correct')|list|length }})
+    </button>
+    <button type="button" class="btn-modern btn-danger-modern filter-btn-item" onclick="filterQuestions('incorrect', this)">
+        <i class="bi bi-x-circle"></i> Incorrect ({{ result.attempt_details|rejectattr('is_correct')|list|length }})
+    </button>
+</div>
+
+<!-- Question Details -->
+<div id="questions-container" class="fade-up">
+    {% for attempt in result.attempt_details %}
+    <div class="view-question-card {% if attempt.is_correct %}correct{% else %}incorrect{% endif %}" data-correct="{{ attempt.is_correct | lower }}">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <h6 style="font-weight: 600; color: var(--primary-dark); flex: 1; margin: 0; line-height: 1.4;">
+                Q{{ loop.index }}. {{ attempt.question_text }}
+            </h6>
+            {% if attempt.is_correct %}
+            <span class="badge-modern badge-success"><i class="bi bi-check"></i> Correct</span>
+            {% else %}
+            <span class="badge-modern badge-danger"><i class="bi bi-x"></i> Incorrect</span>
+            {% endif %}
+        </div>
+        
+        <div style="margin-top: 1rem;">
+            {% for option in attempt.options %}
+            <div class="view-option-item 
+                {% if option in attempt.correct_option %}view-option-correct{% endif %}
+                {% if option in attempt.selected_option and option not in attempt.correct_option %}view-option-wrong-selected{% endif %}
+                {% if option in attempt.selected_option %}view-option-selected{% endif %}">
+                {% if option in attempt.selected_option %}
+                    <i class="bi bi-check-square-fill"></i>
+                {% else %}
+                    <i class="bi bi-square"></i>
+                {% endif %}
+                <span style="flex: 1;">{{ option }}</span>
+                {% if option in attempt.correct_option %}
+                    <span class="badge-modern badge-success" style="font-size: 0.7rem;">✓ Correct Answer</span>
+                {% endif %}
+                {% if option in attempt.selected_option and option not in attempt.correct_option %}
+                    <span class="badge-modern badge-danger" style="font-size: 0.7rem;">✗ Wrong Choice</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div style="margin-top: 2rem;" class="fade-up">
+    <a href="{{ url_for('teacher_quiz_results', quiz_id=quiz_id) }}" class="btn-modern btn-secondary-modern">
+        <i class="bi bi-arrow-left"></i> Back to Results
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterQuestions(filter, btn) {
+    const cards = document.querySelectorAll('.view-question-card');
+    const buttons = document.querySelectorAll('.filter-btn-item');
+    
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    cards.forEach(card => {
+        const isCorrect = card.dataset.correct === 'true';
+        
+        if (filter === 'all') {
+            card.style.display = 'block';
+        } else if (filter === 'correct' && isCorrect) {
+            card.style.display = 'block';
+        } else if (filter === 'incorrect' && !isCorrect) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

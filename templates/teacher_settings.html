@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Permissions Settings - Quiz App{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="mb-4 fade-in">
+    <nav style="background: var(--card-bg); backdrop-filter: var(--glass-blur); padding: 0.75rem 1rem; border-radius: 0.75rem;">
+        <a href="{{ url_for('teacher_dashboard') }}" class="text-primary" style="text-decoration: none;">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <span class="text-muted"> / </span>
+        <span class="text-muted">Settings</span>
+    </nav>
+</div>
+
+<!-- Section Header -->
+<div class="section-header fade-up">
+    <h2 class="section-title"><i class="bi bi-gear"></i> Permissions Settings</h2>
+    <p class="section-subtitle">Control which batches can view answers for each quiz</p>
+</div>
+
+<div class="card-modern fade-up">
+    <div class="card-header-modern" style="background: linear-gradient(135deg, #1f2937, #111827);">
+        <span><i class="bi bi-shield-lock"></i> Answer Visibility Permissions</span>
+    </div>
+    <div class="card-body-modern">
+        <div class="alert-modern alert-info-modern" style="margin-bottom: 1.5rem;">
+            <i class="bi bi-info-circle"></i>
+            <div>
+                <strong>How it works:</strong> Enter comma-separated batch names to allow those batches to see correct/incorrect answer indicators after submitting a quiz. 
+                If left empty, students in those batches will only see their score, not the detailed answers.
+            </div>
+        </div>
+        
+        <form action="{{ url_for('teacher_settings') }}" method="POST">
+            {% for quiz_file in quiz_files %}
+            <div class="card-modern" style="margin-bottom: 1rem; background: rgba(124, 58, 237, 0.05);">
+                <div class="card-body-modern">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-file-earmark-text text-primary" style="font-size: 1.25rem;"></i>
+                        <strong style="color: var(--primary-dark);">{{ quiz_file }}</strong>
+                    </div>
+                    <input type="text" class="form-control-modern" 
+                           name="batches_{{ quiz_file }}" 
+                           value="{{ permissions.get(quiz_file, []) | join(', ') }}"
+                           placeholder="e.g., Batch-A, Batch-B, 2024-Morning">
+                    <div style="margin-top: 0.75rem;">
+                        <small class="text-muted">Current: </small>
+                        {% if permissions.get(quiz_file, []) %}
+                            {% for batch in permissions.get(quiz_file, []) %}
+                                <span class="badge-modern" style="background: var(--primary-color); color: white; margin-left: 0.25rem;">{{ batch }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted"><i class="bi bi-lock"></i> No batches - answers hidden from all students</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            
+            <div class="d-flex justify-content-between flex-wrap gap-3" style="margin-top: 2rem;">
+                <a href="{{ url_for('teacher_dashboard') }}" class="btn-modern btn-secondary-modern">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+                <button type="submit" class="btn-modern btn-primary-modern">
+                    <i class="bi bi-save"></i> Save Permissions
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card-modern mt-4 fade-up delay-1" style="background: rgba(20, 184, 166, 0.1);">
+    <div class="card-body-modern">
+        <h5 style="color: var(--info-color); margin-bottom: 1rem;">
+            <i class="bi bi-question-circle"></i> Examples
+        </h5>
+        <ul style="margin: 0; padding-left: 1.25rem; color: #4b5563;">
+            <li style="margin-bottom: 0.5rem;"><strong>Batch-A, Batch-B</strong> - Students in Batch-A and Batch-B can see answers</li>
+            <li style="margin-bottom: 0.5rem;"><strong>2024-Morning, 2024-Evening</strong> - Both morning and evening batches can see answers</li>
+            <li><strong>(empty)</strong> - No students can see answers, only their final score</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
