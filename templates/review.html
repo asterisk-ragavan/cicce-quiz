@@ -62,6 +62,9 @@
         border-left-color: var(--warning-color);
         background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.02));
     }
+    .question-review-card.flagged {
+        border-right: 4px solid var(--warning-color);
+    }
     .question-number {
         display: inline-flex;
         align-items: center;
@@ -139,14 +142,29 @@
                         <span class="progress-text-centered">{{ progress }}% Answered</span>
                     </div>
                 </div>
+                
+                <!-- Filter Buttons -->
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button class="btn-modern btn-outline-modern filter-btn active" data-filter="all" style="font-size: 0.85rem;">
+                        <i class="bi bi-list"></i> All
+                    </button>
+                    <button class="btn-modern btn-outline-modern filter-btn" data-filter="unanswered" style="font-size: 0.85rem;">
+                        <i class="bi bi-exclamation-circle"></i> Unanswered
+                    </button>
+                    <button class="btn-modern btn-outline-modern filter-btn" data-filter="flagged" style="font-size: 0.85rem;">
+                        <i class="bi bi-flag-fill"></i> Flagged ({{ flagged_questions | length }})
+                    </button>
+                </div>
             </div>
         </div>
 
         <!-- Questions List -->
         <div class="questions-list fade-up">
             {% for q in questions_summary %}
-            <div class="question-review-card {% if not q.is_answered %}unanswered{% elif q.is_correct %}correct{% elif q.is_correct == false %}wrong{% else %}answered{% endif %}"
-                 onclick="goToQuestion({{ q.index }})" role="button">
+            <div class="question-review-card {% if not q.is_answered %}unanswered{% elif q.is_correct %}correct{% elif q.is_correct == false %}wrong{% else %}answered{% endif %}{% if q.is_flagged %} flagged{% endif %}"
+                 onclick="goToQuestion({{ q.index }})" role="button"
+                 data-answered="{{ 'true' if q.is_answered else 'false' }}"
+                 data-flagged="{{ 'true' if q.is_flagged else 'false' }}">
                 <div class="d-flex align-items-start justify-content-between">
                     <div class="d-flex align-items-start flex-grow-1">
                         <span class="question-number">{{ q.index + 1 }}</span>
@@ -176,6 +194,9 @@
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        {% if q.is_flagged %}
+                        <i class="bi bi-flag-fill text-warning" title="Flagged for review"></i>
+                        {% endif %}
                         {% if q.is_multi_select %}
                         <span class="badge-modern badge-secondary" style="font-size: 0.7rem;">
                             Multi
@@ -285,5 +306,27 @@
         }
         return confirm('Are you sure you want to submit your quiz? You cannot change your answers after submission.');
     }
+
+    // Filter functionality
+    $('.filter-btn').click(function() {
+        $('.filter-btn').removeClass('active btn-primary-modern').addClass('btn-outline-modern');
+        $(this).removeClass('btn-outline-modern').addClass('active btn-primary-modern');
+        
+        const filter = $(this).data('filter');
+        const cards = $('.question-review-card');
+        
+        cards.each(function() {
+            const isAnswered = $(this).data('answered') === true;
+            const isFlagged = $(this).data('flagged') === true;
+            
+            if (filter === 'all') {
+                $(this).show();
+            } else if (filter === 'unanswered') {
+                $(this).toggle(!isAnswered);
+            } else if (filter === 'flagged') {
+                $(this).toggle(isFlagged);
+            }
+        });
+    });
 </script>
 {% endblock %}

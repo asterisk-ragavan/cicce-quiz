@@ -29,20 +29,41 @@
                     </div>
                 </div>
                 
+                <!-- Resume Quiz Alert (shown via JS if progress exists) -->
+                <div id="resumeAlert" class="alert-modern alert-warning-modern mb-3" style="display: none;">
+                    <i class="bi bi-pause-circle"></i>
+                    <div>
+                        <strong>Incomplete Quiz Found!</strong>
+                        <p class="mb-0" style="font-size: 0.85rem;">
+                            You have saved progress: <span id="progressInfo"></span>
+                        </p>
+                    </div>
+                </div>
+                
                 <p class="text-muted mb-3" style="font-size: 0.9rem;">
                     <i class="bi bi-info-circle"></i> Is this you? Click "Start Quiz" to continue, or "Not Me" to enter different details.
                 </p>
                 
-                <form action="{{ url_for('start_quiz_with_session') }}" method="POST">
+                <form action="{{ url_for('start_quiz_with_session') }}" method="POST" id="startQuizForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="quiz_id" value="{{ quiz_id }}">
-                    <div class="d-flex flex-wrap gap-3">
-                        <button type="submit" class="btn-modern btn-primary-modern" style="flex: 2;">
+                    <input type="hidden" name="resume" id="resumeInput" value="false">
+                    <div class="d-flex flex-wrap gap-3" id="actionButtons">
+                        <button type="submit" class="btn-modern btn-primary-modern" style="flex: 2;" id="startBtn">
                             <i class="bi bi-play-fill"></i> Start Quiz
                         </button>
                         <a href="{{ url_for('clear_student_and_redirect', quiz=quiz_id) }}" class="btn-modern btn-outline-modern" style="flex: 1;">
                             <i class="bi bi-person-x"></i> Not Me
                         </a>
+                    </div>
+                    <!-- Resume buttons (shown via JS) -->
+                    <div class="d-flex flex-wrap gap-3 mt-2" id="resumeButtons" style="display: none !important;">
+                        <button type="button" class="btn-modern btn-success-modern" style="flex: 2;" onclick="resumeQuiz()">
+                            <i class="bi bi-arrow-clockwise"></i> Resume Quiz
+                        </button>
+                        <button type="button" class="btn-modern btn-outline-modern" style="flex: 1;" onclick="startFresh()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Start Fresh
+                        </button>
                     </div>
                 </form>
                 
@@ -147,4 +168,46 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+{% if student_data %}
+// Check for saved progress when page loads
+$(document).ready(function() {
+    $.ajax({
+        url: '/check_saved_progress',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            quiz_id: '{{ quiz_id }}',
+            first_name: '{{ student_data.first_name }}',
+            last_name: '{{ student_data.last_name }}',
+            batch: '{{ student_data.batch }}'
+        }),
+        success: function(data) {
+            if (data.has_progress) {
+                $('#resumeAlert').show();
+                $('#progressInfo').text(
+                    'Question ' + (data.current_question + 1) + ', ' + 
+                    data.answered_count + ' answered, Score: ' + data.score
+                );
+                $('#actionButtons').hide();
+                $('#resumeButtons').show().css('display', 'flex');
+            }
+        }
+    });
+});
+
+function resumeQuiz() {
+    $('#resumeInput').val('true');
+    $('#startQuizForm').submit();
+}
+
+function startFresh() {
+    $('#resumeInput').val('false');
+    $('#startQuizForm').submit();
+}
+{% endif %}
+</script>
 {% endblock %}

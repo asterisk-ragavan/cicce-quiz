@@ -137,6 +137,66 @@
     </div>
 </div>
 
+<!-- Score History -->
+{% if score_history and score_history | length > 1 %}
+<div class="card-modern mb-4 fade-up">
+    <div class="card-header-modern" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.8), rgba(99, 102, 241, 0.8));">
+        <span><i class="bi bi-clock-history"></i> Your Score History - {{ quiz_title }}</span>
+        <span class="badge-modern badge-light">{{ score_history | length }} attempts</span>
+    </div>
+    <div class="card-body-modern">
+        <!-- Overall Stats -->
+        {% if student_stats %}
+        <div class="grid-container grid-cols-4 mb-3" style="gap: 0.5rem;">
+            <div class="text-center" style="padding: 0.75rem; background: rgba(99, 102, 241, 0.1); border-radius: 0.5rem;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">{{ student_stats.total_attempts }}</div>
+                <small class="text-muted">Total Attempts</small>
+            </div>
+            <div class="text-center" style="padding: 0.75rem; background: rgba(34, 197, 94, 0.1); border-radius: 0.5rem;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-color);">{{ student_stats.quizzes_taken }}</div>
+                <small class="text-muted">Quizzes Taken</small>
+            </div>
+            <div class="text-center" style="padding: 0.75rem; background: rgba(245, 158, 11, 0.1); border-radius: 0.5rem;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning-color);">{{ student_stats.avg_score }}%</div>
+                <small class="text-muted">Average Score</small>
+            </div>
+            <div class="text-center" style="padding: 0.75rem; background: rgba(20, 184, 166, 0.1); border-radius: 0.5rem;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--info-color);">{{ student_stats.best_score }}%</div>
+                <small class="text-muted">Best Score</small>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div style="overflow-x: auto; max-height: 200px; overflow-y: auto;">
+            <table class="table-modern" style="font-size: 0.9rem;">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Score</th>
+                        <th>Percentage</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in score_history %}
+                    <tr {% if loop.first %}style="background: rgba(99, 102, 241, 0.1);"{% endif %}>
+                        <td>{{ loop.index }}{% if loop.first %} <span class="badge-modern badge-primary" style="font-size: 0.7rem;">Latest</span>{% endif %}</td>
+                        <td><strong>{{ attempt.score }}/{{ attempt.max_score }}</strong></td>
+                        <td>
+                            <span class="badge-modern {% if attempt.percentage >= 80 %}badge-success{% elif attempt.percentage >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                                {{ attempt.percentage }}%
+                            </span>
+                        </td>
+                        <td><small class="text-muted">{{ attempt.timestamp }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% if show_answers %}
 <!-- Action Buttons -->
 <div class="d-flex justify-content-center mb-4 flex-wrap gap-3 fade-up">

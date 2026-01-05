@@ -126,6 +126,29 @@ def init_database() -> None:
         )
     ''')
     
+    # Quiz progress table for resume feature
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS quiz_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quiz_id TEXT NOT NULL,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            batch TEXT NOT NULL,
+            current_question INTEGER DEFAULT 0,
+            score INTEGER DEFAULT 0,
+            wrong_attempts INTEGER DEFAULT 0,
+            user_answers TEXT DEFAULT '{}',
+            is_correct TEXT DEFAULT '{}',
+            flagged_questions TEXT DEFAULT '[]',
+            partial_scores TEXT DEFAULT '{}',
+            quiz_start_time REAL,
+            quiz_end_time REAL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(quiz_id, first_name, last_name, batch)
+        )
+    ''')
+    
     # Add is_admin column to teachers if it doesn't exist
     try:
         cursor.execute('ALTER TABLE teachers ADD COLUMN is_admin INTEGER DEFAULT 0')
@@ -941,5 +964,164 @@ def get_dashboard_analytics() -> dict[str, Any]:
         'batch_performance': batch_performance,
         'recent_submissions': recent_submissions
     }
+
+
+# ============ QUIZ PROGRESS (RESUME FEATURE) ============
+
+def save_quiz_progress(
+    quiz_id: str,
+    student_data: StudentData,
+    current_question: int,
+    score: int,
+    wrong_attempts: int,
+    user_answers: dict,
+    is_correct: dict,
+    flagged_questions: list,
+    partial_scores: dict,
+    quiz_start_time: float | None,
+    quiz_end_time: float | None
+) -> bool:
+    """Save quiz progress for resume feature"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
     
-    return round(normalized_score, 2)
+    cursor.execute('''
+        INSERT INTO quiz_progress (
+            quiz_id, first_name, last_name, batch, current_question, score, 
+            wrong_attempts, user_answers, is_correct, flagged_questions,
+            partial_scores, quiz_start_time, quiz_end_time, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(quiz_id, first_name, last_name, batch) DO UPDATE SET
+            current_question = excluded.current_question,
+            score = excluded.score,
+            wrong_attempts = excluded.wrong_attempts,
+            user_answers = excluded.user_answers,
+            is_correct = excluded.is_correct,
+            flagged_questions = excluded.flagged_questions,
+            partial_scores = excluded.partial_scores,
+            quiz_start_time = excluded.quiz_start_time,
+            quiz_end_time = excluded.quiz_end_time,
+            updated_at = CURRENT_TIMESTAMP
+    ''', (
+        quiz_id,
+        student_data['first_name'],
+        student_data['last_name'],
+        student_data['batch'],
+        current_question,
+        score,
+        wrong_attempts,
+        json.dumps(user_answers),
+        json.dumps(is_correct),
+        json.dumps(flagged_questions),
+        json.dumps(partial_scores),
+        quiz_start_time,
+        quiz_end_time
+    ))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_quiz_progress(quiz_id: str, student_data: StudentData) -> dict[str, Any] | None:
+    """Get saved quiz progress for resume"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT * FROM quiz_progress 
+        WHERE quiz_id = ? AND first_name = ? AND last_name = ? AND batch = ?
+    ''', (quiz_id, student_data['first_name'], student_data['last_name'], student_data['batch']))
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        return {
+            'id': row['id'],
+            'current_question': row['current_question'],
+            'score': row['score'],
+            'wrong_attempts': row['wrong_attempts'],
+            'user_answers': json.loads(row['user_answers']),
+            'is_correct': json.loads(row['is_correct']),
+            'flagged_questions': json.loads(row['flagged_questions']),
+            'partial_scores': json.loads(row['partial_scores']),
+            'quiz_start_time': row['quiz_start_time'],
+            'quiz_end_time': row['quiz_end_time'],
+            'created_at': row['created_at'],
+            'updated_at': row['updated_at']
+        }
+    return None
+
+
+def delete_quiz_progress(quiz_id: str, student_data: StudentData) -> bool:
+    """Delete quiz progress after completion"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        DELETE FROM quiz_progress 
+        WHERE quiz_id = ? AND first_name = ? AND last_name = ? AND batch = ?
+    ''', (quiz_id, student_data['first_name'], student_data['last_name'], student_data['batch']))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+
+# ============ SCORE HISTORY ============
+
+def get_student_score_history(first_name: str, last_name: str, batch: str, quiz_id: str = None) -> list[dict[str, Any]]:
+    """Get score history for a student"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    if quiz_id:
+        cursor.execute('''
+            SELECT r.id, r.quiz_id, q.title as quiz_name, r.score, r.max_score, 
+                   r.timestamp, ROUND(CAST(r.score AS FLOAT) / r.max_score * 100, 1) as percentage
+            FROM quiz_results r
+            LEFT JOIN quizzes q ON r.quiz_id = q.quiz_id
+            WHERE r.first_name = ? AND r.last_name = ? AND r.batch = ? AND r.quiz_id = ?
+            ORDER BY r.timestamp DESC
+        ''', (first_name, last_name, batch, quiz_id))
+    else:
+        cursor.execute('''
+            SELECT r.id, r.quiz_id, q.title as quiz_name, r.score, r.max_score, 
+                   r.timestamp, ROUND(CAST(r.score AS FLOAT) / r.max_score * 100, 1) as percentage
+            FROM quiz_results r
+            LEFT JOIN quizzes q ON r.quiz_id = q.quiz_id
+            WHERE r.first_name = ? AND r.last_name = ? AND r.batch = ?
+            ORDER BY r.timestamp DESC
+            LIMIT 20
+        ''', (first_name, last_name, batch))
+    
+    history = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return history
+
+
+def get_student_stats(first_name: str, last_name: str, batch: str) -> dict[str, Any]:
+    """Get overall stats for a student"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT COUNT(*) as total_attempts,
+               COUNT(DISTINCT quiz_id) as quizzes_taken,
+               ROUND(AVG(CAST(score AS FLOAT) / max_score * 100), 1) as avg_score,
+               MAX(CAST(score AS FLOAT) / max_score * 100) as best_score
+        FROM quiz_results
+        WHERE first_name = ? AND last_name = ? AND batch = ?
+    ''', (first_name, last_name, batch))
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    return {
+        'total_attempts': row['total_attempts'] or 0,
+        'quizzes_taken': row['quizzes_taken'] or 0,
+        'avg_score': row['avg_score'] or 0,
+        'best_score': round(row['best_score'], 1) if row['best_score'] else 0
+    }
+

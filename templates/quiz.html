@@ -62,7 +62,12 @@
         <div class="card-modern quiz-card-wrapper fade-up" id="quizCard">
             <div class="card-header-modern">
                 <span><i class="bi bi-question-circle"></i> Question {{ question_index + 1 }} of {{ total_questions }}</span>
-                <span class="d-flex gap-2">
+                <span class="d-flex gap-2 align-items-center">
+                    <button type="button" class="btn-modern {% if question_index in session.get('flagged_questions', []) %}btn-warning-modern{% endif %}" 
+                            id="flagButton" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; {% if question_index not in session.get('flagged_questions', []) %}background: rgba(255,255,255,0.9); color: #333;{% endif %}"
+                            title="Flag for review">
+                        <i class="bi bi-flag{% if question_index in session.get('flagged_questions', []) %}-fill{% endif %}"></i> Flag
+                    </button>
                     <span class="badge-modern badge-success">
                         <i class="bi bi-check-lg"></i> {{ score }}
                     </span>
@@ -268,6 +273,26 @@
         clearTimeout(questionTimeout);
         $.post('/previous', function() {
             window.location.reload();
+        });
+    });
+
+    $('#flagButton').click(function() {
+        $.ajax({
+            url: '/flag_question',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ question_index: {{ question_index }} }),
+            success: function(data) {
+                const btn = $('#flagButton');
+                const icon = btn.find('i');
+                if (data.flagged) {
+                    btn.removeClass('btn-outline-modern').addClass('btn-warning-modern');
+                    icon.removeClass('bi-flag').addClass('bi-flag-fill');
+                } else {
+                    btn.removeClass('btn-warning-modern').addClass('btn-outline-modern');
+                    icon.removeClass('bi-flag-fill').addClass('bi-flag');
+                }
+            }
         });
     });
 

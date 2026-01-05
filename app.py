@@ -101,6 +101,8 @@ def initialize_session(questions: list[QuestionDict], time_limit_minutes: int = 
     session['result_saved'] = False
     session['review_mode'] = False  # For review before submit
     session['quiz_submitted'] = False  # Track if quiz is submitted
+    session['flagged_questions'] = []  # For flagging questions to review
+    session['partial_scores'] = {}  # Track partial scores
     
     # Timer settings
     session['time_limit_minutes'] = time_limit_minutes
@@ -109,6 +111,40 @@ def initialize_session(questions: list[QuestionDict], time_limit_minutes: int = 
         import time
         session['quiz_start_time'] = time.time()
         session['quiz_end_time'] = session['quiz_start_time'] + (time_limit_minutes * 60)
+    else:
+        session['quiz_start_time'] = None
+        session['quiz_end_time'] = None
+    
+    session.modified = True
+
+
+def restore_session_from_progress(progress: dict, questions: list[QuestionDict], time_limit_minutes: int = 0, partial_credit: bool = True) -> None:
+    """Restore session from saved progress"""
+    session['score'] = progress['score']
+    session['wrong_attempts'] = progress['wrong_attempts']
+    session['current_question'] = progress['current_question']
+    # Convert string keys back to int for user_answers and is_correct
+    session['user_answers'] = {int(k): v for k, v in progress['user_answers'].items()}
+    session['is_correct'] = {int(k): v for k, v in progress['is_correct'].items()}
+    session['questions'] = questions
+    session['attempts'] = {int(k): True for k in progress['user_answers'].keys()}
+    session['result_saved'] = False
+    session['review_mode'] = False
+    session['quiz_submitted'] = False
+    session['flagged_questions'] = progress.get('flagged_questions', [])
+    session['partial_scores'] = {int(k): v for k, v in progress.get('partial_scores', {}).items()}
+    session['partial_score'] = sum(session['partial_scores'].values())
+    
+    # Timer settings - restore or calculate new end time
+    session['time_limit_minutes'] = time_limit_minutes
+    session['partial_credit_enabled'] = partial_credit
+    if time_limit_minutes > 0 and progress.get('quiz_end_time'):
+        import time
+        session['quiz_start_time'] = progress['quiz_start_time']
+        session['quiz_end_time'] = progress['quiz_end_time']
+        # Check if time already expired
+        if time.time() > session['quiz_end_time']:
+            session['quiz_end_time'] = time.time()  # Already expired
     else:
         session['quiz_start_time'] = None
         session['quiz_end_time'] = None
@@ -163,6 +199,7 @@ def set_student_details() -> Response:
     last_name = request.form.get('last_name', '').strip()
     batch = request.form.get('batch', '').strip()
     quiz_id = request.form.get('quiz_id', '').strip()
+    resume = request.form.get('resume', '') == 'true'
     
     if not all([first_name, last_name, batch, quiz_id]):
         flash('All fields are required.', 'danger')
@@ -173,17 +210,29 @@ def set_student_details() -> Response:
         flash('Quiz not available.', 'danger')
         return redirect(url_for('index'))
     
-    session['student_data'] = {
+    student_data = {
         'first_name': first_name,
         'last_name': last_name,
         'batch': batch
     }
+    session['student_data'] = student_data
     session['current_quiz_id'] = quiz_id
     session['current_quiz_title'] = quiz_info['title']
     
     questions = db.get_quiz_questions(quiz_id, shuffle=True)
     time_limit = quiz_info.get('time_limit_minutes', 0) or 0
     partial_credit = quiz_info.get('partial_credit', 1) == 1
+    
+    # Check for saved progress if resuming
+    if resume:
+        progress = db.get_quiz_progress(quiz_id, student_data)
+        if progress:
+            restore_session_from_progress(progress, questions, time_limit, partial_credit)
+            flash('Quiz progress restored. Continue where you left off!', 'success')
+            return redirect(url_for('quiz'))
+    
+    # Delete any old progress when starting fresh
+    db.delete_quiz_progress(quiz_id, student_data)
     initialize_session(questions, time_limit, partial_credit)
     
     return redirect(url_for('quiz'))
@@ -213,6 +262,7 @@ def clear_student_and_redirect() -> Response:
 def start_quiz_with_session() -> Response:
     """Start quiz using existing session student data"""
     quiz_id = request.form.get('quiz_id', '').strip()
+    resume = request.form.get('resume', '') == 'true'
     
     if not session.get('student_data'):
         flash('Please enter your details first.', 'warning')
@@ -229,6 +279,17 @@ def start_quiz_with_session() -> Response:
     questions = db.get_quiz_questions(quiz_id, shuffle=True)
     time_limit = quiz_info.get('time_limit_minutes', 0) or 0
     partial_credit = quiz_info.get('partial_credit', 1) == 1
+    
+    # Check for saved progress if resuming
+    if resume:
+        progress = db.get_quiz_progress(quiz_id, session['student_data'])
+        if progress:
+            restore_session_from_progress(progress, questions, time_limit, partial_credit)
+            flash('Quiz progress restored. Continue where you left off!', 'success')
+            return redirect(url_for('quiz'))
+    
+    # Delete any old progress when starting fresh
+    db.delete_quiz_progress(quiz_id, session['student_data'])
     initialize_session(questions, time_limit, partial_credit)
     
     return redirect(url_for('quiz'))
@@ -336,8 +397,74 @@ def check_answer() -> Response:
             session['wrong_attempts'] += 1
         
         session.modified = True
+        
+        # Auto-save progress after each answer
+        if session.get('student_data') and session.get('current_quiz_id'):
+            try:
+                db.save_quiz_progress(
+                    quiz_id=session['current_quiz_id'],
+                    student_data=session['student_data'],
+                    current_question=session['current_question'],
+                    score=session['score'],
+                    wrong_attempts=session['wrong_attempts'],
+                    user_answers={str(k): v for k, v in session.get('user_answers', {}).items()},
+                    is_correct={str(k): v for k, v in session.get('is_correct', {}).items()},
+                    flagged_questions=session.get('flagged_questions', []),
+                    partial_scores={str(k): v for k, v in session.get('partial_scores', {}).items()},
+                    quiz_start_time=session.get('quiz_start_time'),
+                    quiz_end_time=session.get('quiz_end_time')
+                )
+            except Exception as e:
+                print(f"Error saving progress: {e}")
     
     return jsonify({'result': 'correct' if is_correct else 'incorrect', 'score': session['score']})
+
+
+@app.route('/flag_question', methods=['POST'])
+def flag_question() -> Response:
+    """Toggle flag status for a question"""
+    question_index = request.json.get('question_index')
+    if question_index is None:
+        question_index = session.get('current_question', 0)
+    
+    if 'flagged_questions' not in session:
+        session['flagged_questions'] = []
+    
+    if question_index in session['flagged_questions']:
+        session['flagged_questions'].remove(question_index)
+        flagged = False
+    else:
+        session['flagged_questions'].append(question_index)
+        flagged = True
+    
+    session.modified = True
+    return jsonify({'flagged': flagged, 'flagged_questions': session['flagged_questions']})
+
+
+@app.route('/check_saved_progress', methods=['POST'])
+def check_saved_progress() -> Response:
+    """Check if there's saved progress for a student/quiz combination"""
+    data = request.json
+    quiz_id = data.get('quiz_id', '')
+    first_name = data.get('first_name', '')
+    last_name = data.get('last_name', '')
+    batch = data.get('batch', '')
+    
+    if not all([quiz_id, first_name, last_name, batch]):
+        return jsonify({'has_progress': False})
+    
+    student_data = {'first_name': first_name, 'last_name': last_name, 'batch': batch}
+    progress = db.get_quiz_progress(quiz_id, student_data)
+    
+    if progress:
+        return jsonify({
+            'has_progress': True,
+            'current_question': progress['current_question'],
+            'answered_count': len(progress['user_answers']),
+            'score': progress['score'],
+            'updated_at': progress['updated_at']
+        })
+    return jsonify({'has_progress': False})
 
 
 @app.route('/next', methods=['POST'])
@@ -396,6 +523,9 @@ def review_quiz() -> str | Response:
     session['review_mode'] = True
     session.modified = True
     
+    # Get flagged questions
+    flagged_questions = session.get('flagged_questions', [])
+    
     # Prepare question summaries
     questions_summary = []
     for idx, question in enumerate(session['questions']):
@@ -412,7 +542,8 @@ def review_quiz() -> str | Response:
             'user_answer': user_answer,
             'correct_answer': question['answer'],
             'is_multi_select': len(question['answer']) > 1,
-            'partial_score': partial_score
+            'partial_score': partial_score,
+            'is_flagged': idx in flagged_questions
         })
     
     answered_count = sum(1 for q in questions_summary if q['is_answered'])
@@ -426,7 +557,8 @@ def review_quiz() -> str | Response:
                          wrong_attempts=session['wrong_attempts'],
                          time_limit_minutes=session.get('time_limit_minutes', 0),
                          remaining_seconds=remaining_seconds,
-                         partial_credit_enabled=session.get('partial_credit_enabled', True))
+                         partial_credit_enabled=session.get('partial_credit_enabled', True),
+                         flagged_questions=flagged_questions)
 
 
 @app.route('/submit_quiz', methods=['GET', 'POST'])
@@ -474,15 +606,16 @@ def result() -> str | Response:
     
     quiz_id = session.get('current_quiz_id', '')
     is_teacher = session.get('is_teacher', False)
-    student_batch = session.get('student_data', {}).get('batch', '')
+    student_data = session.get('student_data', {})
+    student_batch = student_data.get('batch', '')
     
     show_answers = is_teacher or db.check_answer_permission(quiz_id, student_batch)
     
-    # Save result
-    if not session.get('result_saved') and not is_teacher and session.get('student_data'):
+    # Save result and delete progress
+    if not session.get('result_saved') and not is_teacher and student_data:
         try:
             db.save_student_result(
-                student_data=session['student_data'],
+                student_data=student_data,
                 quiz_id=quiz_id,
                 score=session['score'],
                 max_score=len(session['questions']),
@@ -491,9 +624,29 @@ def result() -> str | Response:
                 is_correct=session['is_correct']
             )
             session['result_saved'] = True
+            
+            # Delete saved progress since quiz is complete
+            db.delete_quiz_progress(quiz_id, student_data)
+            
             session.modified = True
         except Exception as e:
             print(f"Error saving result: {e}")
+    
+    # Get score history for the student
+    score_history = []
+    student_stats = {}
+    if student_data:
+        score_history = db.get_student_score_history(
+            student_data.get('first_name', ''),
+            student_data.get('last_name', ''),
+            student_data.get('batch', ''),
+            quiz_id
+        )
+        student_stats = db.get_student_stats(
+            student_data.get('first_name', ''),
+            student_data.get('last_name', ''),
+            student_data.get('batch', '')
+        )
     
     return render_template(
         'result.html',
@@ -503,7 +656,10 @@ def result() -> str | Response:
         user_answers=session['user_answers'],
         is_correct=session['is_correct'],
         show_answers=show_answers,
-        student_data=session.get('student_data', {})
+        student_data=student_data,
+        score_history=score_history,
+        student_stats=student_stats,
+        quiz_title=session.get('current_quiz_title', '')
     )
 
 
