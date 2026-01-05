@@ -34,21 +34,24 @@
         </div>
         
         <form action="{{ url_for('teacher_settings') }}" method="POST">
-            {% for quiz_file in quiz_files %}
+            {% for quiz in quizzes %}
             <div class="card-modern" style="margin-bottom: 1rem; background: rgba(124, 58, 237, 0.05);">
                 <div class="card-body-modern">
                     <div class="d-flex align-items-center gap-2 mb-3">
                         <i class="bi bi-file-earmark-text text-primary" style="font-size: 1.25rem;"></i>
-                        <strong style="color: var(--primary-dark);">{{ quiz_file }}</strong>
+                        <strong style="color: var(--primary-dark);">{{ quiz.quiz_name }}</strong>
+                        {% if not quiz.is_active %}
+                        <span class="badge bg-secondary">Archived</span>
+                        {% endif %}
                     </div>
                     <input type="text" class="form-control-modern" 
-                           name="batches_{{ quiz_file }}" 
-                           value="{{ permissions.get(quiz_file, []) | join(', ') }}"
+                           name="batches_{{ quiz.quiz_id }}" 
+                           value="{{ quiz.allowed_batches | join(', ') if quiz.allowed_batches else '' }}"
                            placeholder="e.g., Batch-A, Batch-B, 2024-Morning">
                     <div style="margin-top: 0.75rem;">
                         <small class="text-muted">Current: </small>
-                        {% if permissions.get(quiz_file, []) %}
-                            {% for batch in permissions.get(quiz_file, []) %}
+                        {% if quiz.allowed_batches %}
+                            {% for batch in quiz.allowed_batches %}
                                 <span class="badge-modern" style="background: var(--primary-color); color: white; margin-left: 0.25rem;">{{ batch }}</span>
                             {% endfor %}
                         {% else %}

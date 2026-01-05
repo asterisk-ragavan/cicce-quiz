@@ -68,11 +68,11 @@
             <i class="bi bi-speedometer2"></i> Dashboard
         </a>
         <span class="text-muted"> / </span>
-        <a href="{{ url_for('teacher_quiz_results', quiz_id=quiz_id) }}" class="text-primary" style="text-decoration: none;">
-            {{ quiz_id.replace('_', ' ') }}
+        <a href="{{ url_for('teacher_quiz_results', quiz_id=result.quiz_id) }}" class="text-primary" style="text-decoration: none;">
+            {{ result.quiz_name }}
         </a>
         <span class="text-muted"> / </span>
-        <span class="text-muted">{{ result.student_info.first_name }} {{ result.student_info.last_name }}</span>
+        <span class="text-muted">{{ result.first_name }} {{ result.last_name }}</span>
     </nav>
 </div>
 
@@ -85,18 +85,18 @@
         <div class="grid-container grid-cols-2">
             <div>
                 <p style="margin-bottom: 0.75rem;">
-                    <strong>Name:</strong> {{ result.student_info.first_name }} {{ result.student_info.last_name }}
+                    <strong>Name:</strong> {{ result.first_name }} {{ result.last_name }}
                 </p>
                 <p style="margin-bottom: 0;">
-                    <strong>Batch:</strong> <span class="badge-modern badge-secondary">{{ result.student_info.batch }}</span>
+                    <strong>Batch:</strong> <span class="badge-modern badge-secondary">{{ result.batch }}</span>
                 </p>
             </div>
             <div>
                 <p style="margin-bottom: 0.75rem;">
-                    <strong>Quiz:</strong> {{ result.quiz_meta.quiz_id.replace('_', ' ') | title }}
+                    <strong>Quiz:</strong> {{ result.quiz_name }}
                 </p>
                 <p style="margin-bottom: 0;">
-                    <strong>Submitted:</strong> <span class="text-muted">{{ result.quiz_meta.timestamp }}</span>
+                    <strong>Submitted:</strong> <span class="text-muted">{{ result.submitted_at }}</span>
                 </p>
             </div>
         </div>
@@ -107,15 +107,15 @@
 <div class="card-modern mb-4 fade-up">
     <div class="card-body-modern text-center">
         <h3 style="margin-bottom: 0.5rem;">Score: 
-            <span class="{% if result.quiz_meta.total_score == result.quiz_meta.max_score %}text-success{% elif result.quiz_meta.total_score >= result.quiz_meta.max_score * 0.5 %}text-warning{% else %}text-danger{% endif %}" style="font-weight: 700;">
-                {{ result.quiz_meta.total_score }}/{{ result.quiz_meta.max_score }}
+            <span class="{% if result.score == result.max_score %}text-success{% elif result.score >= result.max_score * 0.5 %}text-warning{% else %}text-danger{% endif %}" style="font-weight: 700;">
+                {{ result.score }}/{{ result.max_score }}
             </span>
         </h3>
         <p class="text-muted" style="margin-bottom: 1rem;">
-            {{ ((result.quiz_meta.total_score / result.quiz_meta.max_score) * 100) | round(1) }}% Correct
+            {{ ((result.score / result.max_score) * 100) | round(1) }}% Correct
         </p>
         <div class="progress-modern" style="height: 2rem; position: relative;">
-            {% set percent = (result.quiz_meta.total_score / result.quiz_meta.max_score * 100) | round(1) %}
+            {% set percent = (result.score / result.max_score * 100) | round(1) %}
             <div class="progress-bar-modern {% if percent >= 80 %}progress-bar-success{% elif percent >= 50 %}progress-bar-warning{% else %}progress-bar-danger{% endif %}" 
                  style="width: {{ percent }}%"></div>
             <span class="progress-text-centered">{{ percent }}%</span>
@@ -177,7 +177,7 @@
 </div>
 
 <div style="margin-top: 2rem;" class="fade-up">
-    <a href="{{ url_for('teacher_quiz_results', quiz_id=quiz_id) }}" class="btn-modern btn-secondary-modern">
+    <a href="{{ url_for('teacher_quiz_results', quiz_id=result.quiz_id) }}" class="btn-modern btn-secondary-modern">
         <i class="bi bi-arrow-left"></i> Back to Results
     </a>
 </div>

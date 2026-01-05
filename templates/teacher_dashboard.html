@@ -9,6 +9,15 @@
     <p class="section-subtitle">View and manage all quiz submissions</p>
 </div>
 
+<!-- Sync Button -->
+<div class="d-flex justify-content-end mb-3">
+    <form action="{{ url_for('teacher_sync_quizzes') }}" method="POST" style="display: inline;">
+        <button type="submit" class="btn-modern btn-outline-modern">
+            <i class="bi bi-arrow-repeat"></i> Sync New Quizzes
+        </button>
+    </form>
+</div>
+
 {% if summary %}
 <!-- Quiz Results Grid -->
 <div class="grid-container grid-cols-3" style="margin-top: 2rem;">
@@ -18,16 +27,27 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h5 style="font-weight: 600; color: var(--primary-dark); text-transform: capitalize;">
-                        <i class="bi bi-journal-text text-primary"></i> {{ quiz.quiz_id.replace('_', ' ') }}
+                        <i class="bi bi-journal-text text-primary"></i> {{ quiz.quiz_name }}
                     </h5>
                     <p class="text-muted mb-0">
                         <i class="bi bi-people-fill"></i> {{ quiz.submission_count }} submission(s)
                     </p>
+                    <p class="text-muted mb-0">
+                        <i class="bi bi-question-circle"></i> {{ quiz.question_count }} questions
+                    </p>
+                    {% if quiz.avg_score is not none %}
+                    <p class="mb-0" style="color: var(--primary-color);">
+                        <i class="bi bi-graph-up"></i> Avg: {{ "%.1f"|format(quiz.avg_score) }}%
+                    </p>
+                    {% endif %}
                 </div>
                 <div style="font-size: 2.5rem; font-weight: 700; color: var(--primary-color);">
                     {{ quiz.submission_count }}
                 </div>
             </div>
+            {% if not quiz.is_active %}
+            <span class="badge bg-secondary mt-2">Archived</span>
+            {% endif %}
         </div>
         <div class="card-footer-modern">
             <a href="{{ url_for('teacher_quiz_results', quiz_id=quiz.quiz_id) }}" class="btn-modern btn-primary-modern w-100">

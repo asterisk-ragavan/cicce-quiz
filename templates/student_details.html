@@ -12,11 +12,11 @@
             <div class="card-body-modern">
                 <p class="text-muted mb-4">
                     Please provide your information before starting the quiz: 
-                    <span class="badge-modern badge-info">{{ quiz_file }}</span>
+                    <span class="badge-modern badge-info">{{ quiz_name }}</span>
                 </p>
                 
                 <form action="{{ url_for('set_student_details') }}" method="POST">
-                    <input type="hidden" name="quiz_file" value="{{ quiz_file }}">
+                    <input type="hidden" name="quiz_id" value="{{ quiz_id }}">
                     
                     <div class="mb-4">
                         <label for="first_name" class="form-label-modern">
