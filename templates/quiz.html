@@ -12,10 +12,51 @@
         background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05)) !important;
         border-color: var(--danger-color) !important;
     }
+    .timer-display {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: var(--card-bg);
+        backdrop-filter: var(--glass-blur);
+        padding: 0.75rem 1.25rem;
+        border-radius: 1rem;
+        box-shadow: var(--shadow-md);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+    }
+    .timer-display.warning {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
+        color: #d97706;
+        animation: pulse 1s infinite;
+    }
+    .timer-display.danger {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+        color: #dc2626;
+        animation: pulse 0.5s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+    }
+    .partial-credit-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- Timer Display -->
+{% if time_limit_minutes and time_limit_minutes > 0 %}
+<div class="timer-display" id="timerDisplay">
+    <i class="bi bi-clock"></i>
+    <span id="timerText">--:--</span>
+</div>
+{% endif %}
+
 <div class="d-flex justify-content-center">
     <div style="max-width: 800px; width: 100%;">
         <div class="card-modern quiz-card-wrapper fade-up" id="quizCard">
@@ -36,9 +77,16 @@
                 </h5>
                 
                 {% if question.answer | length > 1 %}
-                <span class="badge-modern badge-info mb-3">
-                    <i class="bi bi-check2-square"></i> Multiple Select
-                </span>
+                <div class="d-flex gap-2 mb-3">
+                    <span class="badge-modern badge-info">
+                        <i class="bi bi-check2-square"></i> Multiple Select
+                    </span>
+                    {% if partial_credit_enabled %}
+                    <span class="badge-modern badge-secondary partial-credit-badge">
+                        <i class="bi bi-pie-chart"></i> Partial Credit
+                    </span>
+                    {% endif %}
+                </div>
                 {% endif %}
                 
                 <form id="quizForm">
@@ -68,6 +116,9 @@
                     <button type="button" class="btn-modern btn-info-modern" id="nextButton">
                         Next <i class="bi bi-arrow-right"></i>
                     </button>
+                    <button type="button" class="btn-modern btn-warning-modern" id="reviewButton">
+                        <i class="bi bi-list-check"></i> Review All
+                    </button>
                     {% if show_answers %}
                     <button type="button" class="btn-modern btn-outline-modern" id="viewAnswerButton">
                         <i class="bi bi-eye"></i> View Answer
@@ -88,24 +139,6 @@
                 <span class="progress-text-centered">{{ progress }}% Complete</span>
             </div>
         </div>
-        
-        <!-- Quiz Info Cards -->
-        <!-- <div class="grid-container grid-cols-2" style="margin-top: 1.5rem;">
-            <div class="card-modern fade-up delay-1" style="background: rgba(34, 197, 94, 0.1);">
-                <div class="card-body-modern text-center p-3">
-                    <i class="bi bi-check-circle-fill text-success" style="font-size: 1.5rem;"></i>
-                    <h4 style="color: var(--success-color); margin: 0.5rem 0 0;">{{ score }}</h4>
-                    <small class="text-muted">Correct Answers</small>
-                </div>
-            </div>
-            <div class="card-modern fade-up delay-2" style="background: rgba(239, 68, 68, 0.1);">
-                <div class="card-body-modern text-center p-3">
-                    <i class="bi bi-x-circle-fill text-danger" style="font-size: 1.5rem;"></i>
-                    <h4 style="color: var(--danger-color); margin: 0.5rem 0 0;">{{ wrong_attempts }}</h4>
-                    <small class="text-muted">Wrong Attempts</small>
-                </div>
-            </div>
-        </div> -->
     </div>
 </div>
 {% endblock %}
@@ -113,21 +146,65 @@
 {% block extra_js %}
 <script>
     let questionTimeout;
+    let timerInterval;
+    let remainingSeconds = {{ remaining_seconds if remaining_seconds else 'null' }};
+
+    // Timer functionality
+    {% if time_limit_minutes and time_limit_minutes > 0 %}
+    function updateTimer() {
+        if (remainingSeconds === null) return;
+        
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = remainingSeconds % 60;
+        const timerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        $('#timerText').text(timerText);
+        
+        const timerDisplay = $('#timerDisplay');
+        timerDisplay.removeClass('warning danger');
+        
+        if (remainingSeconds <= 60) {
+            timerDisplay.addClass('danger');
+        } else if (remainingSeconds <= 300) {
+            timerDisplay.addClass('warning');
+        }
+        
+        if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            alert('Time is up! Your quiz will be submitted.');
+            window.location.href = "{{ url_for('submit_quiz') }}";
+            return;
+        }
+        
+        remainingSeconds--;
+    }
+    
+    // Start timer
+    updateTimer();
+    timerInterval = setInterval(updateTimer, 1000);
+    
+    // Sync timer with server periodically
+    setInterval(function() {
+        $.get('/get_remaining_time', function(data) {
+            if (data.expired) {
+                window.location.href = "{{ url_for('submit_quiz') }}";
+            } else if (data.remaining_seconds !== null) {
+                remainingSeconds = data.remaining_seconds;
+            }
+        });
+    }, 30000); // Sync every 30 seconds
+    {% endif %}
 
     {% if show_answers %}
     $('#viewExplanationButton').click(function() {
-        // Get the question text and options
         const questionText = "{{ question.question }}";
         const questionOptions = {{ question.options | tojson }};
         
-        // Label options as a., b., c., etc., and construct the search query
         let searchQuery = questionText + " ";
-        const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G']; // Extend if needed for more options
+        const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
         questionOptions.forEach((option, index) => {
             searchQuery += optionLabels[index] + ". " + option + " ";
         });
     
-        // Encode the query for a URL and open Google search in a new tab
         const googleSearchUrl = "https://www.google.com/search?q=" + encodeURIComponent(searchQuery);
         window.open(googleSearchUrl, '_blank');
     });     
@@ -141,7 +218,6 @@
                     alert(data.error);
                     return;
                 }
-                // Display the correct answers
                 $('#correctAnswers').html('<i class="bi bi-check-circle-fill"></i> Correct Answer: ' + data.correct_answers.join('<br> '));
                 $('#correctAnswers').css('color', 'var(--primary-color)').show();
                 $('#viewExplanationButton').show();
@@ -167,7 +243,6 @@
                     $('#quizCard').addClass("correct").removeClass("wrong"); 
                     $('#nextButton').prop('disabled', false);
 
-                    // Advance after seconds
                     questionTimeout = setTimeout(function() {
                         $('#nextButton').click();
                     }, 1000);
@@ -180,8 +255,12 @@
     });
 
     $('#nextButton').click(function() {
-        $.post('/next', function() {
-            window.location.reload();
+        $.post('/next', function(data) {
+            if (data.status === 'review' && data.redirect) {
+                window.location.href = data.redirect;
+            } else {
+                window.location.reload();
+            }
         });
     });
 
@@ -190,6 +269,10 @@
         $.post('/previous', function() {
             window.location.reload();
         });
+    });
+
+    $('#reviewButton').click(function() {
+        window.location.href = "{{ url_for('review_quiz') }}";
     });
 </script>
 {% endblock %}

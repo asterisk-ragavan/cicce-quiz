@@ -110,10 +110,37 @@
         
         <!-- Info Card -->
         <div class="card-modern mt-4 fade-up delay-2" style="background: rgba(20, 184, 166, 0.1);">
-            <div class="card-body-modern text-center">
-                <i class="bi bi-info-circle text-info" style="font-size: 1.5rem;"></i>
-                <p class="mb-0 mt-2" style="font-size: 0.9rem; color: #115e59;">
+            <div class="card-body-modern">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-info-circle text-info" style="font-size: 1.25rem;"></i>
+                    <strong style="color: #115e59;">Quiz Information</strong>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="badge-modern badge-secondary">
+                        <i class="bi bi-question-circle"></i> {{ quiz_info.question_count if quiz_info else '?' }} questions
+                    </span>
+                    {% if quiz_info and quiz_info.time_limit_minutes and quiz_info.time_limit_minutes > 0 %}
+                    <span class="badge-modern badge-warning">
+                        <i class="bi bi-clock"></i> {{ quiz_info.time_limit_minutes }} min time limit
+                    </span>
+                    {% else %}
+                    <span class="badge-modern badge-success">
+                        <i class="bi bi-infinity"></i> No time limit
+                    </span>
+                    {% endif %}
+                    {% if quiz_info and quiz_info.partial_credit %}
+                    <span class="badge-modern badge-info">
+                        <i class="bi bi-pie-chart"></i> Partial credit enabled
+                    </span>
+                    {% endif %}
+                </div>
+                <p class="mb-0" style="font-size: 0.85rem; color: #115e59;">
+                    {% if quiz_info and quiz_info.time_limit_minutes and quiz_info.time_limit_minutes > 0 %}
+                    <i class="bi bi-exclamation-triangle text-warning"></i> 
+                    Timer starts when you begin. Make sure you're ready!
+                    {% else %}
                     Your details will be saved with your quiz results for tracking progress.
+                    {% endif %}
                 </p>
             </div>
         </div>

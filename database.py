@@ -54,6 +54,8 @@ def init_database() -> None:
             file_hash TEXT,
             question_count INTEGER DEFAULT 0,
             is_active INTEGER DEFAULT 1,
+            time_limit_minutes INTEGER DEFAULT 0,
+            partial_credit INTEGER DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -108,9 +110,27 @@ def init_database() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Batches table for batch management
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            description TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Add is_admin column to teachers if it doesn't exist
+    try:
+        cursor.execute('ALTER TABLE teachers ADD COLUMN is_admin INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     
     # Create indexes
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_questions_quiz ON quiz_questions(quiz_id)')
@@ -123,7 +143,10 @@ def init_database() -> None:
     cursor.execute('SELECT COUNT(*) FROM teachers')
     if cursor.fetchone()[0] == 0:
         default_hash = generate_password_hash('password', method='pbkdf2:sha256')
-        cursor.execute('INSERT INTO teachers (username, password_hash) VALUES (?, ?)', ('admin', default_hash))
+        cursor.execute('INSERT INTO teachers (username, password_hash, is_admin) VALUES (?, ?, 1)', ('admin', default_hash))
+    else:
+        # Make sure the admin user has is_admin = 1
+        cursor.execute('UPDATE teachers SET is_admin = 1 WHERE username = ?', ('admin',))
     
     conn.commit()
     conn.close()
@@ -264,7 +287,7 @@ def get_active_quizzes() -> list[dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT quiz_id, title, question_count, created_at,
+        SELECT quiz_id, title, question_count, time_limit_minutes, partial_credit, created_at,
                (SELECT COUNT(*) FROM quiz_results WHERE quiz_results.quiz_id = quizzes.quiz_id) as submission_count
         FROM quizzes 
         WHERE is_active = 1 
@@ -569,3 +592,354 @@ def toggle_quiz_active(quiz_id: str) -> bool | None:
     conn.close()
     
     return new_status
+
+
+def update_quiz_settings(quiz_id: str, time_limit_minutes: int, partial_credit: bool) -> bool:
+    """Update quiz settings (time limit and partial credit)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE quizzes 
+        SET time_limit_minutes = ?, partial_credit = ? 
+        WHERE quiz_id = ?
+    ''', (time_limit_minutes, 1 if partial_credit else 0, quiz_id))
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def calculate_partial_score(selected: list[str], correct: list[str]) -> float:
+    """Calculate partial credit for multi-select questions.
+    
+    Scoring formula:
+    - Each correct selection: +1 point
+    - Each incorrect selection: -1 point (penalty for wrong selections)
+    - Minimum score: 0 (no negative total)
+    - Normalized to 0-1 range based on number of correct answers
+    """
+    if not correct:
+        return 0.0
+    
+    selected_set = set(opt.strip() for opt in selected)
+    correct_set = set(opt.strip() for opt in correct)
+    
+    # For single-answer questions, use binary scoring
+    if len(correct_set) == 1:
+        return 1.0 if selected_set == correct_set else 0.0
+    
+    # Multi-select partial credit calculation
+    correct_selections = len(selected_set & correct_set)  # Correct answers selected
+    incorrect_selections = len(selected_set - correct_set)  # Wrong answers selected
+    
+    # Raw score: correct picks minus incorrect picks
+    raw_score = correct_selections - incorrect_selections
+    
+    # Normalize: divide by total correct answers, minimum 0
+    normalized_score = max(0, raw_score) / len(correct_set)
+    
+    return round(normalized_score, 2)
+
+
+# ============ TEACHER MANAGEMENT ============
+
+def get_all_teachers() -> list[dict[str, Any]]:
+    """Get all teachers"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, username, is_admin, created_at
+        FROM teachers
+        ORDER BY created_at DESC
+    ''')
+    teachers = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return teachers
+
+
+def create_teacher(username: str, password: str, is_admin: bool = False) -> tuple[bool, str]:
+    """Create a new teacher account"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Check if username exists
+    cursor.execute('SELECT id FROM teachers WHERE username = ?', (username,))
+    if cursor.fetchone():
+        conn.close()
+        return False, "Username already exists"
+    
+    password_hash = generate_password_hash(password, method='pbkdf2:sha256')
+    cursor.execute('''
+        INSERT INTO teachers (username, password_hash, is_admin)
+        VALUES (?, ?, ?)
+    ''', (username, password_hash, 1 if is_admin else 0))
+    
+    conn.commit()
+    conn.close()
+    return True, "Teacher created successfully"
+
+
+def delete_teacher(teacher_id: int) -> tuple[bool, str]:
+    """Delete a teacher (cannot delete admin)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT username, is_admin FROM teachers WHERE id = ?', (teacher_id,))
+    row = cursor.fetchone()
+    
+    if not row:
+        conn.close()
+        return False, "Teacher not found"
+    
+    if row['username'] == 'admin':
+        conn.close()
+        return False, "Cannot delete the admin account"
+    
+    cursor.execute('DELETE FROM teachers WHERE id = ?', (teacher_id,))
+    conn.commit()
+    conn.close()
+    return True, "Teacher deleted successfully"
+
+
+def get_teacher_info(username: str) -> dict[str, Any] | None:
+    """Get teacher info by username"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, username, is_admin, created_at FROM teachers WHERE username = ?', (username,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+# ============ BATCH MANAGEMENT ============
+
+def get_all_batches() -> list[dict[str, Any]]:
+    """Get all batches"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT b.id, b.name, b.description, b.is_active, b.created_at,
+               (SELECT COUNT(*) FROM quiz_results WHERE batch = b.name) as student_count
+        FROM batches b
+        ORDER BY b.name
+    ''')
+    batches = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return batches
+
+
+def create_batch(name: str, description: str = '') -> tuple[bool, str]:
+    """Create a new batch"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            INSERT INTO batches (name, description)
+            VALUES (?, ?)
+        ''', (name.strip(), description.strip()))
+        conn.commit()
+        conn.close()
+        return True, "Batch created successfully"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, "Batch name already exists"
+
+
+def update_batch(batch_id: int, name: str, description: str, is_active: bool) -> tuple[bool, str]:
+    """Update a batch"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get old name for updating results
+    cursor.execute('SELECT name FROM batches WHERE id = ?', (batch_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return False, "Batch not found"
+    
+    old_name = row['name']
+    
+    try:
+        cursor.execute('''
+            UPDATE batches 
+            SET name = ?, description = ?, is_active = ?
+            WHERE id = ?
+        ''', (name.strip(), description.strip(), 1 if is_active else 0, batch_id))
+        
+        # Update quiz_results with new batch name
+        if old_name != name.strip():
+            cursor.execute('UPDATE quiz_results SET batch = ? WHERE batch = ?', (name.strip(), old_name))
+            cursor.execute('UPDATE quiz_permissions SET batch = ? WHERE batch = ?', (name.strip(), old_name))
+        
+        conn.commit()
+        conn.close()
+        return True, "Batch updated successfully"
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False, "Batch name already exists"
+
+
+def delete_batch(batch_id: int) -> tuple[bool, str]:
+    """Delete a batch"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT name FROM batches WHERE id = ?', (batch_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return False, "Batch not found"
+    
+    cursor.execute('DELETE FROM batches WHERE id = ?', (batch_id,))
+    conn.commit()
+    conn.close()
+    return True, "Batch deleted successfully"
+
+
+def get_unique_batches_from_results() -> list[str]:
+    """Get unique batch names from quiz results"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT DISTINCT batch FROM quiz_results ORDER BY batch')
+    batches = [row['batch'] for row in cursor.fetchall()]
+    conn.close()
+    return batches
+
+
+# ============ EXPORT FUNCTIONS ============
+
+def get_quiz_results_for_export(quiz_id: str) -> list[dict[str, Any]]:
+    """Get all results for a quiz in export-friendly format"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT r.id, r.first_name, r.last_name, r.batch, r.score, r.max_score, 
+               r.timestamp, r.attempt_details,
+               ROUND(CAST(r.score AS FLOAT) / r.max_score * 100, 1) as percentage
+        FROM quiz_results r
+        WHERE r.quiz_id = ?
+        ORDER BY r.timestamp DESC
+    ''', (quiz_id,))
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
+def get_all_results_for_export() -> list[dict[str, Any]]:
+    """Get all results for export"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT r.id, q.title as quiz_name, r.first_name, r.last_name, r.batch, 
+               r.score, r.max_score, r.timestamp,
+               ROUND(CAST(r.score AS FLOAT) / r.max_score * 100, 1) as percentage
+        FROM quiz_results r
+        LEFT JOIN quizzes q ON r.quiz_id = q.quiz_id
+        ORDER BY r.timestamp DESC
+    ''')
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
+# ============ ANALYTICS ============
+
+def get_dashboard_analytics() -> dict[str, Any]:
+    """Get analytics data for the dashboard"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Total stats
+    cursor.execute('SELECT COUNT(*) as count FROM quiz_results')
+    total_submissions = cursor.fetchone()['count']
+    
+    cursor.execute('SELECT COUNT(*) as count FROM quizzes WHERE is_active = 1')
+    total_quizzes = cursor.fetchone()['count']
+    
+    cursor.execute('SELECT COUNT(DISTINCT batch) as count FROM quiz_results')
+    total_batches = cursor.fetchone()['count']
+    
+    cursor.execute('SELECT AVG(CAST(score AS FLOAT) / max_score * 100) as avg FROM quiz_results')
+    row = cursor.fetchone()
+    overall_avg = round(row['avg'], 1) if row['avg'] else 0
+    
+    # Submissions by day (last 7 days)
+    cursor.execute('''
+        SELECT DATE(timestamp) as date, COUNT(*) as count
+        FROM quiz_results
+        WHERE timestamp >= DATE('now', '-7 days')
+        GROUP BY DATE(timestamp)
+        ORDER BY date
+    ''')
+    submissions_by_day = [dict(row) for row in cursor.fetchall()]
+    
+    # Score distribution
+    cursor.execute('''
+        SELECT 
+            CASE 
+                WHEN (CAST(score AS FLOAT) / max_score * 100) >= 90 THEN '90-100%'
+                WHEN (CAST(score AS FLOAT) / max_score * 100) >= 80 THEN '80-89%'
+                WHEN (CAST(score AS FLOAT) / max_score * 100) >= 70 THEN '70-79%'
+                WHEN (CAST(score AS FLOAT) / max_score * 100) >= 60 THEN '60-69%'
+                WHEN (CAST(score AS FLOAT) / max_score * 100) >= 50 THEN '50-59%'
+                ELSE 'Below 50%'
+            END as range,
+            COUNT(*) as count
+        FROM quiz_results
+        GROUP BY range
+        ORDER BY range DESC
+    ''')
+    score_distribution = [dict(row) for row in cursor.fetchall()]
+    
+    # Performance by quiz
+    cursor.execute('''
+        SELECT q.title as quiz_name, 
+               COUNT(r.id) as submissions,
+               ROUND(AVG(CAST(r.score AS FLOAT) / r.max_score * 100), 1) as avg_score
+        FROM quizzes q
+        LEFT JOIN quiz_results r ON q.quiz_id = r.quiz_id
+        WHERE q.is_active = 1
+        GROUP BY q.quiz_id
+        HAVING submissions > 0
+        ORDER BY avg_score DESC
+    ''')
+    quiz_performance = [dict(row) for row in cursor.fetchall()]
+    
+    # Performance by batch
+    cursor.execute('''
+        SELECT batch, 
+               COUNT(*) as submissions,
+               ROUND(AVG(CAST(score AS FLOAT) / max_score * 100), 1) as avg_score
+        FROM quiz_results
+        GROUP BY batch
+        ORDER BY avg_score DESC
+    ''')
+    batch_performance = [dict(row) for row in cursor.fetchall()]
+    
+    # Recent submissions
+    cursor.execute('''
+        SELECT r.first_name, r.last_name, r.batch, q.title as quiz_name,
+               r.score, r.max_score, r.timestamp
+        FROM quiz_results r
+        LEFT JOIN quizzes q ON r.quiz_id = q.quiz_id
+        ORDER BY r.timestamp DESC
+        LIMIT 10
+    ''')
+    recent_submissions = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return {
+        'total_submissions': total_submissions,
+        'total_quizzes': total_quizzes,
+        'total_batches': total_batches,
+        'overall_avg': overall_avg,
+        'submissions_by_day': submissions_by_day,
+        'score_distribution': score_distribution,
+        'quiz_performance': quiz_performance,
+        'batch_performance': batch_performance,
+        'recent_submissions': recent_submissions
+    }
+    
+    return round(normalized_score, 2)

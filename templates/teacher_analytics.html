@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Dashboard - Quiz App{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        text-align: center;
+        padding: 1.5rem;
+    }
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+    .chart-container-small {
+        position: relative;
+        height: 250px;
+        width: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="mb-4 fade-in">
+    <nav style="background: var(--card-bg); backdrop-filter: var(--glass-blur); padding: 0.75rem 1rem; border-radius: 0.75rem;">
+        <a href="{{ url_for('teacher_dashboard') }}" class="text-primary" style="text-decoration: none;">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <span class="text-muted"> / </span>
+        <span class="text-muted">Analytics</span>
+    </nav>
+</div>
+
+<!-- Section Header -->
+<div class="section-header fade-up">
+    <h2 class="section-title"><i class="bi bi-graph-up-arrow"></i> Analytics Dashboard</h2>
+    <p class="section-subtitle">Visual insights into quiz performance and student progress</p>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid-container grid-cols-4 mb-4">
+    <div class="card-modern fade-up" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05));">
+        <div class="stat-card">
+            <div class="stat-number text-primary">{{ analytics.total_submissions }}</div>
+            <small class="text-muted">Total Submissions</small>
+        </div>
+    </div>
+    <div class="card-modern fade-up delay-1" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));">
+        <div class="stat-card">
+            <div class="stat-number text-success">{{ analytics.total_quizzes }}</div>
+            <small class="text-muted">Active Quizzes</small>
+        </div>
+    </div>
+    <div class="card-modern fade-up delay-2" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));">
+        <div class="stat-card">
+            <div class="stat-number text-warning">{{ analytics.total_batches }}</div>
+            <small class="text-muted">Batches</small>
+        </div>
+    </div>
+    <div class="card-modern fade-up delay-3" style="background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(20, 184, 166, 0.05));">
+        <div class="stat-card">
+            <div class="stat-number text-info">{{ analytics.overall_avg }}%</div>
+            <small class="text-muted">Average Score</small>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="grid-container grid-cols-2 mb-4">
+    <!-- Submissions Over Time -->
+    <div class="card-modern fade-up">
+        <div class="card-header-modern">
+            <span><i class="bi bi-calendar3"></i> Submissions (Last 7 Days)</span>
+        </div>
+        <div class="card-body-modern">
+            <div class="chart-container">
+                <canvas id="submissionsChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Score Distribution -->
+    <div class="card-modern fade-up delay-1">
+        <div class="card-header-modern">
+            <span><i class="bi bi-pie-chart"></i> Score Distribution</span>
+        </div>
+        <div class="card-body-modern">
+            <div class="chart-container">
+                <canvas id="scoreDistributionChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="grid-container grid-cols-2 mb-4">
+    <!-- Quiz Performance -->
+    <div class="card-modern fade-up">
+        <div class="card-header-modern">
+            <span><i class="bi bi-journal-text"></i> Quiz Performance</span>
+        </div>
+        <div class="card-body-modern">
+            <div class="chart-container">
+                <canvas id="quizPerformanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Batch Performance -->
+    <div class="card-modern fade-up delay-1">
+        <div class="card-header-modern">
+            <span><i class="bi bi-people"></i> Batch Performance</span>
+        </div>
+        <div class="card-body-modern">
+            <div class="chart-container">
+                <canvas id="batchPerformanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Submissions -->
+<div class="card-modern fade-up mb-4">
+    <div class="card-header-modern">
+        <span><i class="bi bi-clock-history"></i> Recent Submissions</span>
+    </div>
+    <div class="card-body-modern">
+        {% if analytics.recent_submissions %}
+        <div style="overflow-x: auto;">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Batch</th>
+                        <th>Quiz</th>
+                        <th>Score</th>
+                        <th>Date/Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in analytics.recent_submissions %}
+                    <tr>
+                        <td><strong>{{ sub.first_name }} {{ sub.last_name }}</strong></td>
+                        <td><span class="badge-modern badge-secondary">{{ sub.batch }}</span></td>
+                        <td>{{ sub.quiz_name }}</td>
+                        <td>
+                            {% set percent = (sub.score / sub.max_score * 100) | round(1) %}
+                            <span class="badge-modern {% if percent >= 80 %}badge-success{% elif percent >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                                {{ sub.score }}/{{ sub.max_score }} ({{ percent }}%)
+                            </span>
+                        </td>
+                        <td><small class="text-muted">{{ sub.timestamp }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center">No submissions yet</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Export Section -->
+<div class="card-modern fade-up" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));">
+    <div class="card-header-modern" style="background: rgba(34, 197, 94, 0.2);">
+        <span><i class="bi bi-download text-success"></i> Export Data</span>
+    </div>
+    <div class="card-body-modern">
+        <p class="text-muted mb-3">Download quiz results as CSV for further analysis in Excel or other tools.</p>
+        <a href="{{ url_for('teacher_export_all_csv') }}" class="btn-modern btn-success-modern">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Export All Results to CSV
+        </a>
+    </div>
+</div>
+
+<div style="margin-top: 2rem;">
+    <a href="{{ url_for('teacher_dashboard') }}" class="btn-modern btn-secondary-modern">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Color palette
+    const colors = {
+        primary: 'rgba(99, 102, 241, 0.8)',
+        primaryLight: 'rgba(99, 102, 241, 0.2)',
+        success: 'rgba(34, 197, 94, 0.8)',
+        warning: 'rgba(245, 158, 11, 0.8)',
+        danger: 'rgba(239, 68, 68, 0.8)',
+        info: 'rgba(20, 184, 166, 0.8)',
+        purple: 'rgba(139, 92, 246, 0.8)',
+        pink: 'rgba(236, 72, 153, 0.8)'
+    };
+
+    // Submissions Over Time Chart
+    const submissionsData = {{ analytics.submissions_by_day | tojson }};
+    new Chart(document.getElementById('submissionsChart'), {
+        type: 'line',
+        data: {
+            labels: submissionsData.map(d => d.date),
+            datasets: [{
+                label: 'Submissions',
+                data: submissionsData.map(d => d.count),
+                borderColor: colors.primary,
+                backgroundColor: colors.primaryLight,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+
+    // Score Distribution Chart
+    const scoreDistData = {{ analytics.score_distribution | tojson }};
+    const scoreColors = ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#dc2626'];
+    new Chart(document.getElementById('scoreDistributionChart'), {
+        type: 'doughnut',
+        data: {
+            labels: scoreDistData.map(d => d.range),
+            datasets: [{
+                data: scoreDistData.map(d => d.count),
+                backgroundColor: scoreColors.slice(0, scoreDistData.length)
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right' }
+            }
+        }
+    });
+
+    // Quiz Performance Chart
+    const quizPerfData = {{ analytics.quiz_performance | tojson }};
+    new Chart(document.getElementById('quizPerformanceChart'), {
+        type: 'bar',
+        data: {
+            labels: quizPerfData.map(d => d.quiz_name.length > 20 ? d.quiz_name.substring(0, 20) + '...' : d.quiz_name),
+            datasets: [{
+                label: 'Average Score (%)',
+                data: quizPerfData.map(d => d.avg_score),
+                backgroundColor: colors.primary
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, max: 100 }
+            }
+        }
+    });
+
+    // Batch Performance Chart
+    const batchPerfData = {{ analytics.batch_performance | tojson }};
+    new Chart(document.getElementById('batchPerformanceChart'), {
+        type: 'bar',
+        data: {
+            labels: batchPerfData.map(d => d.batch),
+            datasets: [{
+                label: 'Average Score (%)',
+                data: batchPerfData.map(d => d.avg_score),
+                backgroundColor: colors.success
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: { beginAtZero: true, max: 100 }
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -14,13 +14,15 @@ Features:
 - Type hints throughout
 """
 
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, flash, Response
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, flash, Response, make_response
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import random
 import os
 import sys
+import csv
+import io
 from datetime import timedelta
 from flask_session import Session
 from typing import Any
@@ -86,9 +88,10 @@ if sync_results['updated']:
 
 # ============ SESSION HELPERS ============
 
-def initialize_session(questions: list[QuestionDict]) -> None:
+def initialize_session(questions: list[QuestionDict], time_limit_minutes: int = 0, partial_credit: bool = True) -> None:
     """Initialize session variables for a new quiz"""
     session['score'] = 0
+    session['partial_score'] = 0.0  # For partial credit tracking
     session['wrong_attempts'] = 0
     session['current_question'] = 0
     session['is_correct'] = {}
@@ -96,6 +99,20 @@ def initialize_session(questions: list[QuestionDict]) -> None:
     session['questions'] = questions
     session['attempts'] = {}
     session['result_saved'] = False
+    session['review_mode'] = False  # For review before submit
+    session['quiz_submitted'] = False  # Track if quiz is submitted
+    
+    # Timer settings
+    session['time_limit_minutes'] = time_limit_minutes
+    session['partial_credit_enabled'] = partial_credit
+    if time_limit_minutes > 0:
+        import time
+        session['quiz_start_time'] = time.time()
+        session['quiz_end_time'] = session['quiz_start_time'] + (time_limit_minutes * 60)
+    else:
+        session['quiz_start_time'] = None
+        session['quiz_end_time'] = None
+    
     session.modified = True
 
 
@@ -135,6 +152,7 @@ def student_details() -> str | Response:
     return render_template('student_details.html', 
                           quiz_id=quiz_id, 
                           quiz_name=quiz_info['title'],
+                          quiz_info=quiz_info,
                           student_data=student_data)
 
 
@@ -164,7 +182,9 @@ def set_student_details() -> Response:
     session['current_quiz_title'] = quiz_info['title']
     
     questions = db.get_quiz_questions(quiz_id, shuffle=True)
-    initialize_session(questions)
+    time_limit = quiz_info.get('time_limit_minutes', 0) or 0
+    partial_credit = quiz_info.get('partial_credit', 1) == 1
+    initialize_session(questions, time_limit, partial_credit)
     
     return redirect(url_for('quiz'))
 
@@ -207,7 +227,9 @@ def start_quiz_with_session() -> Response:
     session['current_quiz_title'] = quiz_info['title']
     
     questions = db.get_quiz_questions(quiz_id, shuffle=True)
-    initialize_session(questions)
+    time_limit = quiz_info.get('time_limit_minutes', 0) or 0
+    partial_credit = quiz_info.get('partial_credit', 1) == 1
+    initialize_session(questions, time_limit, partial_credit)
     
     return redirect(url_for('quiz'))
 
@@ -231,8 +253,19 @@ def quiz() -> str | Response:
         flash('Please enter your details first.', 'warning')
         return redirect(url_for('index'))
     
-    if session['current_question'] >= len(session['questions']):
+    # Check if quiz is submitted
+    if session.get('quiz_submitted'):
         return redirect(url_for('result'))
+    
+    # Check if time has expired
+    import time
+    if session.get('quiz_end_time') and time.time() > session['quiz_end_time']:
+        # Auto-submit if time expired
+        return redirect(url_for('submit_quiz'))
+    
+    # Check if in review mode or reached end of questions
+    if session.get('review_mode') or session['current_question'] >= len(session['questions']):
+        return redirect(url_for('review_quiz'))
     
     current_question = session['questions'][session['current_question']]
     options = current_question['options'].copy()
@@ -242,6 +275,11 @@ def quiz() -> str | Response:
     student_batch = session['student_data'].get('batch', '')
     show_answers = db.check_answer_permission(quiz_id, student_batch)
     
+    # Calculate remaining time
+    remaining_seconds = None
+    if session.get('quiz_end_time'):
+        remaining_seconds = max(0, int(session['quiz_end_time'] - time.time()))
+    
     return render_template('quiz.html',
                          quiz_title=session.get('current_quiz_title', ''),
                          question=current_question,
@@ -250,12 +288,17 @@ def quiz() -> str | Response:
                          wrong_attempts=session['wrong_attempts'],
                          question_index=session['current_question'],
                          total_questions=len(session['questions']),
-                         show_answers=show_answers)
+                         show_answers=show_answers,
+                         time_limit_minutes=session.get('time_limit_minutes', 0),
+                         remaining_seconds=remaining_seconds,
+                         partial_credit_enabled=session.get('partial_credit_enabled', True),
+                         user_answers=session.get('user_answers', {}),
+                         is_correct=session.get('is_correct', {}))
 
 
 @app.route('/check_answer', methods=['POST'])
 def check_answer() -> Response:
-    """Check answer"""
+    """Check answer with partial credit support"""
     selected_options = request.json.get('selected_options', [])
     question_index = session['current_question']
     current_question = session['questions'][question_index]
@@ -266,10 +309,26 @@ def check_answer() -> Response:
     
     is_correct = set(selected_options) == set(correct_answer)
     
+    # Calculate partial credit score for multi-select questions
+    partial_credit_enabled = session.get('partial_credit_enabled', True)
+    partial_score = 0.0
+    
+    if partial_credit_enabled and len(correct_answer) > 1:
+        # Multi-select with partial credit
+        partial_score = db.calculate_partial_score(selected_options, correct_answer)
+    else:
+        # Binary scoring
+        partial_score = 1.0 if is_correct else 0.0
+    
     if question_index not in session['attempts']:
         session['attempts'][question_index] = True
         session['user_answers'][question_index] = selected_options
         session['is_correct'][question_index] = is_correct
+        
+        # Track partial scores for multi-select
+        if 'partial_scores' not in session:
+            session['partial_scores'] = {}
+        session['partial_scores'][question_index] = partial_score
         
         if is_correct:
             session['score'] += 1
@@ -283,9 +342,14 @@ def check_answer() -> Response:
 
 @app.route('/next', methods=['POST'])
 def next_question() -> Response:
-    """Next question"""
+    """Next question - goes to review at the end"""
     session['current_question'] += 1
     session.modified = True
+    
+    # If we've answered all questions, redirect to review
+    if session['current_question'] >= len(session.get('questions', [])):
+        return jsonify({'status': 'review', 'redirect': url_for('review_quiz')})
+    
     return jsonify({'status': 'next'})
 
 
@@ -296,6 +360,96 @@ def previous_question() -> Response:
         session['current_question'] -= 1
     session.modified = True
     return jsonify({'status': 'previous'})
+
+
+@app.route('/go_to_question/<int:question_index>', methods=['POST'])
+def go_to_question(question_index: int) -> Response:
+    """Go to a specific question (for review mode)"""
+    if 0 <= question_index < len(session.get('questions', [])):
+        session['current_question'] = question_index
+        session['review_mode'] = False  # Exit review mode when jumping to a question
+        session.modified = True
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/review', methods=['GET'])
+def review_quiz() -> str | Response:
+    """Review all answers before final submission"""
+    if 'questions' not in session:
+        return redirect(url_for('index'))
+    
+    if not session.get('student_data'):
+        flash('Please enter your details first.', 'warning')
+        return redirect(url_for('index'))
+    
+    if session.get('quiz_submitted'):
+        return redirect(url_for('result'))
+    
+    # Check if time has expired
+    import time
+    remaining_seconds = None
+    if session.get('quiz_end_time'):
+        remaining_seconds = max(0, int(session['quiz_end_time'] - time.time()))
+        if remaining_seconds <= 0:
+            return redirect(url_for('submit_quiz'))
+    
+    session['review_mode'] = True
+    session.modified = True
+    
+    # Prepare question summaries
+    questions_summary = []
+    for idx, question in enumerate(session['questions']):
+        user_answer = session.get('user_answers', {}).get(idx, [])
+        is_answered = idx in session.get('attempts', {})
+        is_correct = session.get('is_correct', {}).get(idx, None)
+        partial_score = session.get('partial_scores', {}).get(idx, 0)
+        
+        questions_summary.append({
+            'index': idx,
+            'question_text': question['question'][:100] + ('...' if len(question['question']) > 100 else ''),
+            'is_answered': is_answered,
+            'is_correct': is_correct,
+            'user_answer': user_answer,
+            'correct_answer': question['answer'],
+            'is_multi_select': len(question['answer']) > 1,
+            'partial_score': partial_score
+        })
+    
+    answered_count = sum(1 for q in questions_summary if q['is_answered'])
+    
+    return render_template('review.html',
+                         quiz_title=session.get('current_quiz_title', ''),
+                         questions_summary=questions_summary,
+                         total_questions=len(session['questions']),
+                         answered_count=answered_count,
+                         score=session['score'],
+                         wrong_attempts=session['wrong_attempts'],
+                         time_limit_minutes=session.get('time_limit_minutes', 0),
+                         remaining_seconds=remaining_seconds,
+                         partial_credit_enabled=session.get('partial_credit_enabled', True))
+
+
+@app.route('/submit_quiz', methods=['GET', 'POST'])
+def submit_quiz() -> Response:
+    """Final quiz submission"""
+    if 'questions' not in session:
+        return redirect(url_for('index'))
+    
+    session['quiz_submitted'] = True
+    session['review_mode'] = False
+    session.modified = True
+    
+    return redirect(url_for('result'))
+
+
+@app.route('/get_remaining_time', methods=['GET'])
+def get_remaining_time() -> Response:
+    """Get remaining time for the quiz (AJAX endpoint)"""
+    import time
+    if session.get('quiz_end_time'):
+        remaining = max(0, int(session['quiz_end_time'] - time.time()))
+        return jsonify({'remaining_seconds': remaining, 'expired': remaining <= 0})
+    return jsonify({'remaining_seconds': None, 'expired': False})
 
 
 @app.route('/get_answer', methods=['GET'])
@@ -410,6 +564,8 @@ def teacher_quiz_results(quiz_id: str) -> str | Response:
                           quiz_id=quiz_id,
                           quiz_name=quiz_info['title'] if quiz_info else quiz_id,
                           is_active=quiz_info['is_active'] if quiz_info else True,
+                          time_limit_minutes=quiz_info.get('time_limit_minutes', 0) if quiz_info else 0,
+                          partial_credit=quiz_info.get('partial_credit', 1) if quiz_info else 1,
                           submissions=submissions,
                           analytics=analytics,
                           permissions=permissions)
@@ -431,6 +587,22 @@ def teacher_view_result(result_id: int) -> str | Response:
                           result=result_data,
                           result_id=result_id,
                           show_answers=True)
+
+
+@app.route('/teacher/quiz/<quiz_id>/settings', methods=['POST'])
+def teacher_update_quiz_settings(quiz_id: str) -> Response:
+    """Update quiz settings (time limit, partial credit)"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    time_limit_minutes = int(request.form.get('time_limit_minutes', 0) or 0)
+    partial_credit = request.form.get('partial_credit') == 'on'
+    
+    db.update_quiz_settings(quiz_id, time_limit_minutes, partial_credit)
+    
+    flash('Quiz settings updated.', 'success')
+    return redirect(url_for('teacher_quiz_results', quiz_id=quiz_id))
 
 
 @app.route('/teacher/quiz/<quiz_id>/permissions', methods=['POST'])
@@ -584,6 +756,234 @@ def teacher_change_password() -> str | Response:
             flash('Failed to update password.', 'danger')
     
     return render_template('teacher_change_password.html')
+
+
+# ============ EXPORT ROUTES ============
+
+@app.route('/teacher/export/quiz/<quiz_id>')
+def teacher_export_quiz_csv(quiz_id: str) -> Response:
+    """Export quiz results to CSV"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    quiz_info = db.get_quiz_info(quiz_id)
+    results = db.get_quiz_results_for_export(quiz_id)
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow(['ID', 'First Name', 'Last Name', 'Batch', 'Score', 'Max Score', 'Percentage', 'Date/Time'])
+    
+    # Data rows
+    for r in results:
+        writer.writerow([
+            r['id'], r['first_name'], r['last_name'], r['batch'],
+            r['score'], r['max_score'], f"{r['percentage']}%", r['timestamp']
+        ])
+    
+    # Create response
+    output.seek(0)
+    response = make_response(output.getvalue())
+    quiz_name = quiz_info['title'] if quiz_info else quiz_id
+    response.headers['Content-Disposition'] = f'attachment; filename={quiz_name}_results.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    
+    return response
+
+
+@app.route('/teacher/export/all')
+def teacher_export_all_csv() -> Response:
+    """Export all results to CSV"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    results = db.get_all_results_for_export()
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Header
+    writer.writerow(['ID', 'Quiz', 'First Name', 'Last Name', 'Batch', 'Score', 'Max Score', 'Percentage', 'Date/Time'])
+    
+    # Data rows
+    for r in results:
+        writer.writerow([
+            r['id'], r['quiz_name'], r['first_name'], r['last_name'], r['batch'],
+            r['score'], r['max_score'], f"{r['percentage']}%", r['timestamp']
+        ])
+    
+    # Create response
+    output.seek(0)
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = 'attachment; filename=all_quiz_results.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    
+    return response
+
+
+# ============ ANALYTICS ROUTES ============
+
+@app.route('/teacher/analytics')
+def teacher_analytics() -> str | Response:
+    """Analytics dashboard with charts"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    analytics = db.get_dashboard_analytics()
+    return render_template('teacher_analytics.html', analytics=analytics)
+
+
+@app.route('/api/analytics')
+def api_analytics() -> Response:
+    """API endpoint for analytics data (for AJAX refresh)"""
+    if not session.get('is_teacher'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    analytics = db.get_dashboard_analytics()
+    return jsonify(analytics)
+
+
+# ============ TEACHER MANAGEMENT ROUTES ============
+
+@app.route('/teacher/manage-teachers')
+def teacher_manage_teachers() -> str | Response:
+    """Manage teacher accounts"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    # Check if current user is admin
+    teacher_info = db.get_teacher_info(session.get('teacher_username', ''))
+    if not teacher_info or not teacher_info.get('is_admin'):
+        flash('Only admins can manage teacher accounts.', 'danger')
+        return redirect(url_for('teacher_dashboard'))
+    
+    teachers = db.get_all_teachers()
+    return render_template('teacher_manage_teachers.html', teachers=teachers)
+
+
+@app.route('/teacher/add-teacher', methods=['POST'])
+def teacher_add_teacher() -> Response:
+    """Add a new teacher account"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    # Check if current user is admin
+    teacher_info = db.get_teacher_info(session.get('teacher_username', ''))
+    if not teacher_info or not teacher_info.get('is_admin'):
+        flash('Only admins can add teacher accounts.', 'danger')
+        return redirect(url_for('teacher_dashboard'))
+    
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '').strip()
+    is_admin = request.form.get('is_admin') == 'on'
+    
+    if not username or not password:
+        flash('Username and password are required.', 'danger')
+        return redirect(url_for('teacher_manage_teachers'))
+    
+    if len(password) < 6:
+        flash('Password must be at least 6 characters.', 'danger')
+        return redirect(url_for('teacher_manage_teachers'))
+    
+    success, message = db.create_teacher(username, password, is_admin)
+    flash(message, 'success' if success else 'danger')
+    
+    return redirect(url_for('teacher_manage_teachers'))
+
+
+@app.route('/teacher/delete-teacher/<int:teacher_id>', methods=['POST'])
+def teacher_delete_teacher(teacher_id: int) -> Response:
+    """Delete a teacher account"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    # Check if current user is admin
+    teacher_info = db.get_teacher_info(session.get('teacher_username', ''))
+    if not teacher_info or not teacher_info.get('is_admin'):
+        flash('Only admins can delete teacher accounts.', 'danger')
+        return redirect(url_for('teacher_dashboard'))
+    
+    success, message = db.delete_teacher(teacher_id)
+    flash(message, 'success' if success else 'danger')
+    
+    return redirect(url_for('teacher_manage_teachers'))
+
+
+# ============ BATCH MANAGEMENT ROUTES ============
+
+@app.route('/teacher/manage-batches')
+def teacher_manage_batches() -> str | Response:
+    """Manage student batches"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    batches = db.get_all_batches()
+    unique_batches = db.get_unique_batches_from_results()
+    return render_template('teacher_manage_batches.html', batches=batches, unique_batches=unique_batches)
+
+
+@app.route('/teacher/add-batch', methods=['POST'])
+def teacher_add_batch() -> Response:
+    """Add a new batch"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip()
+    
+    if not name:
+        flash('Batch name is required.', 'danger')
+        return redirect(url_for('teacher_manage_batches'))
+    
+    success, message = db.create_batch(name, description)
+    flash(message, 'success' if success else 'danger')
+    
+    return redirect(url_for('teacher_manage_batches'))
+
+
+@app.route('/teacher/update-batch/<int:batch_id>', methods=['POST'])
+def teacher_update_batch(batch_id: int) -> Response:
+    """Update a batch"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip()
+    is_active = request.form.get('is_active') == 'on'
+    
+    if not name:
+        flash('Batch name is required.', 'danger')
+        return redirect(url_for('teacher_manage_batches'))
+    
+    success, message = db.update_batch(batch_id, name, description, is_active)
+    flash(message, 'success' if success else 'danger')
+    
+    return redirect(url_for('teacher_manage_batches'))
+
+
+@app.route('/teacher/delete-batch/<int:batch_id>', methods=['POST'])
+def teacher_delete_batch(batch_id: int) -> Response:
+    """Delete a batch"""
+    if not session.get('is_teacher'):
+        flash('Please login.', 'warning')
+        return redirect(url_for('teacher_login'))
+    
+    success, message = db.delete_batch(batch_id)
+    flash(message, 'success' if success else 'danger')
+    
+    return redirect(url_for('teacher_manage_batches'))
 
 
 @app.errorhandler(429)

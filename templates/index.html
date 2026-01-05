@@ -28,10 +28,23 @@
                 <h5 style="font-weight: 600; color: var(--primary-dark); margin-bottom: 0.5rem;">{{ quiz.title }}</h5>
                 <p class="text-muted" style="font-size: 0.9rem;">
                     <i class="bi bi-question-circle"></i> {{ quiz.question_count }} questions
+                    {% if quiz.time_limit_minutes and quiz.time_limit_minutes > 0 %}
+                    <br><i class="bi bi-clock"></i> {{ quiz.time_limit_minutes }} min time limit
+                    {% endif %}
                     {% if quiz.submission_count > 0 %}
                     <br><i class="bi bi-people"></i> {{ quiz.submission_count }} submissions
                     {% endif %}
                 </p>
+                {% if quiz.time_limit_minutes and quiz.time_limit_minutes > 0 %}
+                <span class="badge-modern badge-warning" style="font-size: 0.75rem;">
+                    <i class="bi bi-stopwatch"></i> Timed
+                </span>
+                {% endif %}
+                {% if quiz.partial_credit %}
+                <span class="badge-modern badge-info" style="font-size: 0.75rem;">
+                    <i class="bi bi-pie-chart"></i> Partial Credit
+                </span>
+                {% endif %}
             </div>
             <div class="card-footer-modern">
                 <button class="btn-modern btn-primary-modern w-100 loadQuestionsButton" data-quiz-id="{{ quiz.quiz_id }}">

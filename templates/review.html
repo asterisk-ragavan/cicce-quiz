@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}Review Answers - {{ quiz_title }} - Quiz App{% endblock %}
+
+{% block extra_css %}
+<style>
+    .timer-display {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: var(--card-bg);
+        backdrop-filter: var(--glass-blur);
+        padding: 0.75rem 1.25rem;
+        border-radius: 1rem;
+        box-shadow: var(--shadow-md);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+    }
+    .timer-display.warning {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
+        color: #d97706;
+        animation: pulse 1s infinite;
+    }
+    .timer-display.danger {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+        color: #dc2626;
+        animation: pulse 0.5s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+    }
+    .question-review-card {
+        margin-bottom: 0.75rem;
+        border-left: 4px solid #d1d5db;
+        border-radius: 0.75rem;
+        background: var(--card-bg);
+        backdrop-filter: var(--glass-blur);
+        padding: 1rem 1.25rem;
+        transition: var(--transition-normal);
+        cursor: pointer;
+    }
+    .question-review-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateX(4px);
+    }
+    .question-review-card.answered {
+        border-left-color: var(--primary-color);
+    }
+    .question-review-card.correct {
+        border-left-color: var(--success-color);
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.02));
+    }
+    .question-review-card.wrong {
+        border-left-color: var(--danger-color);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02));
+    }
+    .question-review-card.unanswered {
+        border-left-color: var(--warning-color);
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.02));
+    }
+    .question-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        color: white;
+        font-weight: 600;
+        font-size: 0.85rem;
+        margin-right: 0.75rem;
+    }
+    .question-status-icon {
+        font-size: 1.25rem;
+    }
+    .submit-section {
+        position: sticky;
+        bottom: 0;
+        background: var(--card-bg);
+        backdrop-filter: var(--glass-blur);
+        padding: 1.5rem;
+        border-radius: 1rem 1rem 0 0;
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+        margin-top: 2rem;
+    }
+    .partial-score-badge {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.4rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Timer Display -->
+{% if time_limit_minutes and time_limit_minutes > 0 %}
+<div class="timer-display" id="timerDisplay">
+    <i class="bi bi-clock"></i>
+    <span id="timerText">--:--</span>
+</div>
+{% endif %}
+
+<div class="d-flex justify-content-center">
+    <div style="max-width: 800px; width: 100%;">
+        <!-- Header -->
+        <div class="card-modern fade-up mb-4">
+            <div class="card-header-modern" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                <span><i class="bi bi-list-check"></i> Review Your Answers</span>
+                <span class="badge-modern badge-light">{{ quiz_title }}</span>
+            </div>
+            <div class="card-body-modern">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                        <h5 style="margin: 0; color: var(--primary-dark);">
+                            <i class="bi bi-clipboard-check"></i> {{ answered_count }} of {{ total_questions }} answered
+                        </h5>
+                        <small class="text-muted">Click on a question to edit your answer</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <span class="badge-modern badge-success">
+                            <i class="bi bi-check-lg"></i> {{ score }} Correct
+                        </span>
+                        <span class="badge-modern badge-danger">
+                            <i class="bi bi-x-lg"></i> {{ wrong_attempts }} Wrong
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div style="margin-top: 1rem;">
+                    {% set progress = (answered_count / total_questions * 100) | round(0) %}
+                    <div class="progress-modern" style="position: relative;">
+                        <div class="progress-bar-modern {% if progress == 100 %}progress-bar-success{% elif progress >= 50 %}progress-bar-primary{% else %}progress-bar-warning{% endif %}" 
+                             style="width: {{ progress }}%"></div>
+                        <span class="progress-text-centered">{{ progress }}% Answered</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Questions List -->
+        <div class="questions-list fade-up">
+            {% for q in questions_summary %}
+            <div class="question-review-card {% if not q.is_answered %}unanswered{% elif q.is_correct %}correct{% elif q.is_correct == false %}wrong{% else %}answered{% endif %}"
+                 onclick="goToQuestion({{ q.index }})" role="button">
+                <div class="d-flex align-items-start justify-content-between">
+                    <div class="d-flex align-items-start flex-grow-1">
+                        <span class="question-number">{{ q.index + 1 }}</span>
+                        <div style="flex: 1;">
+                            <p style="margin: 0; color: var(--primary-dark); font-weight: 500;">
+                                {{ q.question_text }}
+                            </p>
+                            {% if q.is_answered %}
+                            <div style="margin-top: 0.5rem;">
+                                <small class="text-muted">
+                                    <i class="bi bi-check2-square"></i> Your answer: 
+                                    <span style="color: var(--primary-dark);">
+                                        {{ q.user_answer | join(', ') if q.user_answer else 'No answer' }}
+                                    </span>
+                                </small>
+                                {% if q.is_multi_select and partial_credit_enabled and q.partial_score > 0 and q.partial_score < 1 %}
+                                <span class="badge-modern badge-info partial-score-badge ms-2">
+                                    {{ (q.partial_score * 100) | round(0) }}% credit
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <small class="text-warning">
+                                <i class="bi bi-exclamation-triangle"></i> Not answered yet
+                            </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        {% if q.is_multi_select %}
+                        <span class="badge-modern badge-secondary" style="font-size: 0.7rem;">
+                            Multi
+                        </span>
+                        {% endif %}
+                        {% if not q.is_answered %}
+                        <i class="bi bi-exclamation-circle text-warning question-status-icon"></i>
+                        {% elif q.is_correct %}
+                        <i class="bi bi-check-circle-fill text-success question-status-icon"></i>
+                        {% elif q.is_correct == false %}
+                        <i class="bi bi-x-circle-fill text-danger question-status-icon"></i>
+                        {% endif %}
+                        <i class="bi bi-chevron-right text-muted"></i>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Submit Section -->
+        <div class="submit-section fade-up">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    {% if answered_count < total_questions %}
+                    <p class="text-warning mb-1" style="font-weight: 500;">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        {{ total_questions - answered_count }} question(s) not answered
+                    </p>
+                    <small class="text-muted">You can still submit with unanswered questions</small>
+                    {% else %}
+                    <p class="text-success mb-0" style="font-weight: 500;">
+                        <i class="bi bi-check-circle"></i> All questions answered!
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('quiz') }}" class="btn-modern btn-secondary-modern">
+                        <i class="bi bi-arrow-left"></i> Continue Quiz
+                    </a>
+                    <form action="{{ url_for('submit_quiz') }}" method="POST" style="display: inline;"
+                          onsubmit="return confirmSubmit()">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-modern btn-primary-modern">
+                            <i class="bi bi-send-check"></i> Submit Quiz
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let timerInterval;
+    let remainingSeconds = {{ remaining_seconds if remaining_seconds else 'null' }};
+    const totalQuestions = {{ total_questions }};
+    const answeredCount = {{ answered_count }};
+
+    // Timer functionality
+    {% if time_limit_minutes and time_limit_minutes > 0 %}
+    function updateTimer() {
+        if (remainingSeconds === null) return;
+        
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = remainingSeconds % 60;
+        const timerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        $('#timerText').text(timerText);
+        
+        const timerDisplay = $('#timerDisplay');
+        timerDisplay.removeClass('warning danger');
+        
+        if (remainingSeconds <= 60) {
+            timerDisplay.addClass('danger');
+        } else if (remainingSeconds <= 300) {
+            timerDisplay.addClass('warning');
+        }
+        
+        if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            alert('Time is up! Your quiz will be submitted.');
+            window.location.href = "{{ url_for('submit_quiz') }}";
+            return;
+        }
+        
+        remainingSeconds--;
+    }
+    
+    updateTimer();
+    timerInterval = setInterval(updateTimer, 1000);
+    {% endif %}
+
+    function goToQuestion(index) {
+        $.ajax({
+            url: '/go_to_question/' + index,
+            type: 'POST',
+            success: function() {
+                window.location.href = "{{ url_for('quiz') }}";
+            }
+        });
+    }
+
+    function confirmSubmit() {
+        if (answeredCount < totalQuestions) {
+            return confirm('You have ' + (totalQuestions - answeredCount) + ' unanswered question(s). Are you sure you want to submit?');
+        }
+        return confirm('Are you sure you want to submit your quiz? You cannot change your answers after submission.');
+    }
+</script>
+{% endblock %}

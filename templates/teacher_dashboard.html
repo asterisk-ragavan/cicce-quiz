@@ -9,14 +9,63 @@
     <p class="section-subtitle">View and manage all quiz submissions</p>
 </div>
 
-<!-- Sync Button -->
-<div class="d-flex justify-content-end mb-3">
-    <form action="{{ url_for('teacher_sync_quizzes') }}" method="POST" style="display: inline;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn-modern btn-outline-modern">
-            <i class="bi bi-arrow-repeat"></i> Sync New Quizzes
-        </button>
-    </form>
+<!-- Quick Stats -->
+<div class="grid-container grid-cols-4 mb-4">
+    <div class="card-modern fade-up" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05));">
+        <div class="card-body-modern text-center p-3">
+            <i class="bi bi-journal-text text-primary" style="font-size: 2rem;"></i>
+            <h3 style="color: var(--primary-color); margin: 0.5rem 0 0;">{{ summary | length }}</h3>
+            <small class="text-muted">Total Quizzes</small>
+        </div>
+    </div>
+    <div class="card-modern fade-up delay-1" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));">
+        <div class="card-body-modern text-center p-3">
+            <i class="bi bi-people-fill text-success" style="font-size: 2rem;"></i>
+            <h3 style="color: var(--success-color); margin: 0.5rem 0 0;">{{ summary | sum(attribute='submission_count') }}</h3>
+            <small class="text-muted">Total Submissions</small>
+        </div>
+    </div>
+    <div class="card-modern fade-up delay-2" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));">
+        <div class="card-body-modern text-center p-3">
+            <i class="bi bi-graph-up text-warning" style="font-size: 2rem;"></i>
+            <a href="{{ url_for('teacher_analytics') }}" style="text-decoration: none;">
+                <h3 style="color: var(--warning-color); margin: 0.5rem 0 0;">Analytics</h3>
+            </a>
+            <small class="text-muted">View Charts</small>
+        </div>
+    </div>
+    <div class="card-modern fade-up delay-3" style="background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(20, 184, 166, 0.05));">
+        <div class="card-body-modern text-center p-3">
+            <i class="bi bi-download text-info" style="font-size: 2rem;"></i>
+            <a href="{{ url_for('teacher_export_all_csv') }}" style="text-decoration: none;">
+                <h3 style="color: var(--info-color); margin: 0.5rem 0 0;">Export</h3>
+            </a>
+            <small class="text-muted">Download CSV</small>
+        </div>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
+    <div class="d-flex flex-wrap gap-2">
+        <form action="{{ url_for('teacher_sync_quizzes') }}" method="POST" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-modern btn-outline-modern">
+                <i class="bi bi-arrow-repeat"></i> Sync Quizzes
+            </button>
+        </form>
+        <a href="{{ url_for('teacher_manage_batches') }}" class="btn-modern btn-outline-modern">
+            <i class="bi bi-collection"></i> Manage Batches
+        </a>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('teacher_analytics') }}" class="btn-modern btn-primary-modern">
+            <i class="bi bi-graph-up-arrow"></i> View Analytics
+        </a>
+        <a href="{{ url_for('teacher_export_all_csv') }}" class="btn-modern btn-success-modern">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Export All
+        </a>
+    </div>
 </div>
 
 {% if summary %}
