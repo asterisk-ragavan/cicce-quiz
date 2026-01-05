@@ -1,10 +1,10 @@
 """
-Build Script for Quiz Application - Windows 7 Compatible
-=========================================================
+Build Script for Quiz Application - Windows 10+ Optimized
+==========================================================
 
-REQUIREMENTS FOR WINDOWS 7 COMPATIBILITY:
-1. Python 3.8.x (the last version supporting Windows 7)
-   Download: https://www.python.org/downloads/release/python-3819/
+REQUIREMENTS:
+1. Python 3.13+ (recommended for best performance)
+   Download: https://www.python.org/downloads/
    
 2. Install required packages:
    pip install -r requirements.txt
@@ -14,15 +14,15 @@ REQUIREMENTS FOR WINDOWS 7 COMPATIBILITY:
 This script will:
 - Check Python version compatibility
 - Install dependencies if needed
-- Build the executable
+- Build the executable with optimizations
 """
 
 import subprocess
 import sys
 import os
 
-def check_python_version():
-    """Check if Python version is compatible with Windows 7"""
+def check_python_version() -> bool:
+    """Check if Python version is compatible (3.10+ recommended)"""
     version = sys.version_info
     print(f"Python Version: {version.major}.{version.minor}.{version.micro}")
     
@@ -30,27 +30,31 @@ def check_python_version():
         print("ERROR: Python 3 is required!")
         return False
     
-    if version.minor > 8:
+    if version.minor < 10:
         print("")
         print("=" * 60)
-        print("  WARNING: Python 3.9+ does NOT support Windows 7!")
+        print("  WARNING: Python 3.10+ is recommended for best performance!")
         print("=" * 60)
         print("")
-        print("  For Windows 7 compatibility, you need Python 3.8.x")
-        print("  Download from: https://www.python.org/downloads/release/python-3819/")
-        print("")
-        print("  The built executable will NOT run on Windows 7!")
-        print("=" * 60)
+        print("  Your version will work, but consider upgrading for:")
+        print("  - Better error messages")
+        print("  - Pattern matching support")
+        print("  - Performance improvements")
         print("")
         response = input("Continue anyway? (y/n): ")
         if response.lower() != 'y':
             return False
+    
+    if version.minor >= 13:
+        print("✓ Python 3.13+ detected - Excellent! Best performance available.")
+    elif version.minor >= 11:
+        print("✓ Python 3.11+ detected - Great performance!")
     else:
-        print("✓ Python version is compatible with Windows 7")
+        print("✓ Python version is compatible")
     
     return True
 
-def install_requirements():
+def install_requirements() -> None:
     """Install required packages"""
     print("\nInstalling requirements...")
     requirements_file = os.path.join(os.path.dirname(__file__), 'requirements.txt')
@@ -61,16 +65,16 @@ def install_requirements():
     else:
         print("WARNING: requirements.txt not found, installing packages manually...")
         packages = [
-            'Flask==2.0.3',
-            'Flask-Session==0.4.0',
-            'Werkzeug==2.0.3',
-            'cachelib==0.6.0',
-            'pyinstaller==5.13.2'
+            'Flask>=3.0.0',
+            'Flask-Session>=0.8.0',
+            'Werkzeug>=3.0.0',
+            'cachelib>=0.12.0',
+            'pyinstaller>=6.0.0'
         ]
         for pkg in packages:
             subprocess.run([sys.executable, '-m', 'pip', 'install', pkg])
 
-def build_executable():
+def build_executable() -> bool:
     """Build the executable using PyInstaller"""
     print("\nBuilding executable...")
     spec_file = os.path.join(os.path.dirname(__file__), 'quiz_app.spec')
@@ -84,10 +88,13 @@ def build_executable():
             print("=" * 60)
             print("  Executable location: dist/QuizApp.exe")
             print("")
-            print("  To run on Windows 7:")
-            print("  1. Copy QuizApp.exe to the target machine")
+            print("  Deployment instructions:")
+            print("  1. Copy QuizApp.exe to the target Windows 10+ machine")
             print("  2. The questions/ folder will be created on first run")
             print("  3. Add your quiz JSON files to the questions/ folder")
+            print("  4. Results are stored in data/results/ folder")
+            print("")
+            print("  Built with Python 3.13+ optimizations!")
             print("=" * 60)
         else:
             print("ERROR: Build failed!")
@@ -98,9 +105,9 @@ def build_executable():
     
     return True
 
-def main():
+def main() -> None:
     print("=" * 60)
-    print("  Quiz Application Builder - Windows 7 Compatible")
+    print("  Quiz Application Builder - Windows 10+ Optimized")
     print("=" * 60)
     print("")
     

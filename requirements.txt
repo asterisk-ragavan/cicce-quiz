@@ -1,17 +1,27 @@
-# Requirements for Quiz Application
-# Compatible with Python 3.8 (required for Windows 7 support)
-# 
-# IMPORTANT: Windows 7 requires Python 3.8.x (last version with Win7 support)
-# Download Python 3.8.19 from: https://www.python.org/downloads/release/python-3819/
+# Quiz Application Requirements
+# Optimized for Python 3.13+ and Windows 10+
 
-Flask==2.0.3
-Flask-Session==0.4.0
-Werkzeug==2.0.3
-Jinja2==3.0.3
-MarkupSafe==2.0.1
-itsdangerous==2.0.1
-click==8.0.4
-cachelib==0.6.0
+# Web Framework
+Flask>=3.0.0
+Flask-Session>=0.8.0
+Werkzeug>=3.0.0
 
-# PyInstaller for building executable (Windows 7 compatible)
-pyinstaller==5.13.2
+# Template Engine (included with Flask, but pinned for compatibility)
+Jinja2>=3.1.0
+MarkupSafe>=2.1.0
+
+# Security & Utils
+itsdangerous>=2.1.0
+click>=8.1.0
+
+# Session Storage
+cachelib>=0.12.0
+
+# Database
+# SQLite is built-in with Python, no extra package needed
+
+# Build Tools
+pyinstaller>=6.0.0
+
+# Optional: For better async support (uncomment if needed)
+asgiref>=3.7.0

@@ -3,9 +3,9 @@
 PyInstaller spec file for Quiz Application - SINGLE FILE BUILD
 Everything bundled inside one exe, only questions folder is external
 
-WINDOWS 7 COMPATIBILITY:
-- Requires Python 3.8.x (last version supporting Windows 7)
-- Download from: https://www.python.org/downloads/release/python-3819/
+WINDOWS 10+ OPTIMIZED:
+- Requires Python 3.10+ (3.13+ recommended for best performance)
+- Download from: https://www.python.org/downloads/
 - Install requirements: pip install -r requirements.txt
 - Build with: pyinstaller --clean quiz_app.spec
 """
@@ -37,9 +37,11 @@ a = Analysis(
         'flask_session',
         'jinja2',
         'werkzeug',
+        'werkzeug.security',
         'cachelib',
         'cachelib.file',
         'cachelib.simple',
+        'sqlite3',
     ],
     hookspath=[],
     hooksconfig={},
