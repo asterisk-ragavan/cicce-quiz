@@ -668,23 +668,11 @@ def start_quiz_with_session() -> Response:
 
 @app.route('/load_questions', methods=['POST'])
 def load_questions() -> Response:
-    """Load questions for a quiz (AJAX)"""
+    """Load questions for a quiz (AJAX) - always redirect to student details for confirmation"""
     quiz_id = request.json.get('quiz_id', '')
     
-    if not session.get('student_data'):
-        return jsonify({'redirect': url_for('student_details', quiz=quiz_id)})
-    
-    quiz_info = get_quiz_info(quiz_id)
-    if not quiz_info or not quiz_info['is_active']:
-        return jsonify({'error': 'Quiz not available'})
-    
-    session['current_quiz_id'] = quiz_id
-    session['current_quiz_title'] = quiz_info['title']
-    
-    questions = get_quiz_questions(quiz_id, shuffle=True)
-    initialize_session(questions)
-    
-    return jsonify('success')
+    # Always redirect to student details page for identity confirmation
+    return jsonify({'redirect': url_for('student_details', quiz=quiz_id)})
 
 
 @app.route('/quiz', methods=['GET'])
